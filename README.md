@@ -110,6 +110,8 @@ Com o **Android Studio** também funciona: basta abrir a pasta `MusicPlayer`.
 
 ## Como compilar e gerar o APK
 
+Todos os comandos do Gradle rodam **dentro da pasta `MusicPlayer/`**.
+
 ```bash
 cd ~/Downloads/projects/MusicPlayer
 
@@ -142,7 +144,7 @@ O release usa **R8** (`isMinifyEnabled = true` e `isShrinkResources = true`) par
 ## Como instalar no celular
 
 **Opção 1: pelo arquivo**
-1. Copie o `Musica.apk` para o celular (cabo, Drive, Telegram...).
+1. Copie o `Musica.apk` (na raiz do repositório) para o celular (cabo, Drive, Telegram...).
 2. Abra o arquivo e permita **instalar apps de fontes desconhecidas**.
 3. Abra o app e aceite a permissão de acesso às músicas (e às notificações).
 
@@ -161,41 +163,44 @@ Para atualizar, basta instalar o novo APK por cima: as playlists e as configura�
 ## Estrutura do projeto
 
 ```
-MusicPlayer/
-├── build.gradle.kts            # plugins (AGP, Kotlin, Compose) e versões
-├── settings.gradle.kts         # repositórios e módulo :app
-├── gradle.properties           # memória do Gradle, AndroidX
-├── gradlew / gradlew.bat       # Gradle Wrapper
-├── local.properties            # caminho do Android SDK (não versionado)
-└── app/
-    ├── build.gradle.kts        # config do app, dependências, assinatura
-    ├── proguard-rules.pro      # regras extras do R8 (vazio)
-    └── src/main/
-        ├── AndroidManifest.xml # permissões, Activity e serviço de música
-        ├── res/
-        │   ├── values/strings.xml          # nome do app ("Música")
-        │   ├── values/themes.xml           # tema da janela (claro) + cor do ícone
-        │   ├── values-night/themes.xml     # tema da janela (escuro)
-        │   ├── drawable/ic_launcher_fg.xml # nota musical do ícone
-        │   └── mipmap-anydpi-v26/ic_launcher.xml  # ícone adaptativo
-        └── java/com/lucas/musica/
-            ├── MainActivity.kt         # entrada do app, permissões, tema
-            ├── MusicViewModel.kt       # estado central e regras do app
-            ├── data/
-            │   ├── Song.kt             # modelos Song e Playlist, conversão p/ MediaItem
-            │   ├── MusicRepository.kt  # leitura das músicas via MediaStore
-            │   └── PlaylistStore.kt    # salvar playlists, favoritas e tema
-            ├── playback/
-            │   └── PlaybackService.kt  # ExoPlayer + MediaSession em segundo plano
-            └── ui/
-                ├── MusicApp.kt         # raiz da interface, navegação, voltar, apagar
-                ├── HomeScreen.kt       # cabeçalho, busca, abas e listas
-                ├── DetailScreen.kt     # álbum / artista / pasta / playlist
-                ├── NowPlayingScreen.kt # tela "Tocando agora"
-                ├── Selection.kt        # barras e diálogo do modo de seleção
-                ├── Components.kt       # capa, linha de música, mini player, diálogos
-                ├── Theme.kt            # cores dos temas claro e escuro
-                └── StatusBar.kt        # cor dos ícones da barra de status
+projects/                       # raiz do repositório
+├── README.md                   # este arquivo
+├── Musica.apk                  # último APK gerado, pronto para instalar
+└── MusicPlayer/                # projeto Android (abra esta pasta no Android Studio)
+    ├── build.gradle.kts            # plugins (AGP, Kotlin, Compose) e versões
+    ├── settings.gradle.kts         # repositórios e módulo :app
+    ├── gradle.properties           # memória do Gradle, AndroidX
+    ├── gradlew / gradlew.bat       # Gradle Wrapper
+    ├── local.properties            # caminho do Android SDK (não versionado)
+    └── app/
+        ├── build.gradle.kts        # config do app, dependências, assinatura
+        ├── proguard-rules.pro      # regras extras do R8 (vazio)
+        └── src/main/
+            ├── AndroidManifest.xml # permissões, Activity e serviço de música
+            ├── res/
+            │   ├── values/strings.xml          # nome do app ("Música")
+            │   ├── values/themes.xml           # tema da janela (claro) + cor do ícone
+            │   ├── values-night/themes.xml     # tema da janela (escuro)
+            │   ├── drawable/ic_launcher_fg.xml # nota musical do ícone
+            │   └── mipmap-anydpi-v26/ic_launcher.xml  # ícone adaptativo
+            └── java/com/lucas/musica/
+                ├── MainActivity.kt         # entrada do app, permissões, tema
+                ├── MusicViewModel.kt       # estado central e regras do app
+                ├── data/
+                │   ├── Song.kt             # modelos Song e Playlist, conversão p/ MediaItem
+                │   ├── MusicRepository.kt  # leitura das músicas via MediaStore
+                │   └── PlaylistStore.kt    # salvar playlists, favoritas e tema
+                ├── playback/
+                │   └── PlaybackService.kt  # ExoPlayer + MediaSession em segundo plano
+                └── ui/
+                    ├── MusicApp.kt         # raiz da interface, navegação, voltar, apagar
+                    ├── HomeScreen.kt       # cabeçalho, busca, abas e listas
+                    ├── DetailScreen.kt     # álbum / artista / pasta / playlist
+                    ├── NowPlayingScreen.kt # tela "Tocando agora"
+                    ├── Selection.kt        # barras e diálogo do modo de seleção
+                    ├── Components.kt       # capa, linha de música, mini player, diálogos
+                    ├── Theme.kt            # cores dos temas claro e escuro
+                    └── StatusBar.kt        # cor dos ícones da barra de status
 ```
 
 ---
