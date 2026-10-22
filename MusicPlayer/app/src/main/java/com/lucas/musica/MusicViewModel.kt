@@ -81,6 +81,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- Busca online (yt-dlp) ----
     var onlineOpen by mutableStateOf(false)
+    var downloadsOpen by mutableStateOf(false)
     var onlineQuery by mutableStateOf("")
     var onlineResults by mutableStateOf<List<OnlineResult>>(emptyList())
         private set
@@ -326,6 +327,26 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
     }
+
+    /**
+     * Chamado ao abrir a tela Online: prepara e, se preciso, atualiza o yt-dlp em segundo plano,
+     * para o primeiro download não ter que esperar por isso.
+     */
+    fun prewarmOnline() {
+        viewModelScope.launch { runCatching { YtDlp.ensureReady(getApplication()) } }
+    }
+
+    /** Toca uma música recém-baixada (pelo ID no MediaStore), se ela já estiver na biblioteca. */
+    fun playDownloaded(mediaId: Long?) {
+        val song = mediaId?.let { songsById[it] }
+        if (song == null) {
+            toast("A música ainda está sendo adicionada à biblioteca")
+            return
+        }
+        play(listOf(song))
+    }
+
+    fun clearFinishedDownloads() = Downloads.clearFinished()
 
     fun downloadOnline(item: OnlineResult) = Downloads.enqueue(getApplication(), item)
     fun cancelDownload(id: String) = Downloads.cancel(id)

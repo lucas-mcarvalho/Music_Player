@@ -1,13 +1,18 @@
 package com.lucas.musica.online
 
 import android.content.Context
+import android.os.SystemClock
+import android.util.Log
 import com.yausername.ffmpeg.FFmpeg
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.io.IOException
@@ -25,8 +30,13 @@ data class OnlineResult(
 
 /** Acesso ao yt-dlp (via youtubedl-android) para buscar, baixar e se atualizar. */
 object YtDlp {
+    private const val TAG = "YtDlp"
     private const val UPDATE_INTERVAL_MS = 24 * 60 * 60 * 1000L
     private const val SEARCH_PROCESS = "busca"
+
+    // M4A (AAC) não precisa de conversão; se não houver, pega o melhor áudio disponível
+    private const val AUDIO_FORMAT = "bestaudio[ext=m4a]/bestaudio"
+    private val AUDIO_EXTENSIONS = setOf("m4a", "mp3", "opus", "ogg", "webm", "aac", "flac")
 
     private val initLock = Mutex()
     @Volatile private var ready = false
@@ -68,17 +78,33 @@ object YtDlp {
         runCatching { YoutubeDL.getInstance().version(context.applicationContext) }.getOrNull() ?: "?"
 
     suspend fun search(context: Context, query: String, limit: Int = 20, onStatus: (String) -> Unit = {}): List<OnlineResult> {
+        val t0 = SystemClock.elapsedRealtime()
+        // Texto comum: busca direta (rápida). Link ou falha da busca direta: yt-dlp.
+        val isLink = query.startsWith("http://") || query.startsWith("https://")
+        if (!isLink) {
+            onStatus("Buscando…")
+            val direct = withContext(Dispatchers.IO) { YouTubeSearch.search(query, limit) }
+            if (direct != null) {
+                Log.d(TAG, "Busca \"$query\" (direta): ${SystemClock.elapsedRealtime() - t0} ms (${direct.size} resultados)")
+                return direct
+            }
+            Log.d(TAG, "Busca direta falhou; usando o yt-dlp")
+        }
         ensureReady(context, onStatus)
+        val t1 = SystemClock.elapsedRealtime()
         onStatus("Buscando…")
         return withContext(Dispatchers.IO) {
             YoutubeDL.getInstance().destroyProcessById(SEARCH_PROCESS)
             // Um link é aberto direto; qualquer outro texto vira uma busca no YouTube
-            val isLink = query.startsWith("http://") || query.startsWith("https://")
             val request = YoutubeDLRequest(if (isLink) query else "ytsearch$limit:$query")
                 .addOption("--flat-playlist")
                 .addOption("--dump-single-json")
                 .addOption("--no-warnings")
-            parseSearch(YoutubeDL.getInstance().execute(request, SEARCH_PROCESS).out)
+                .withCache(context)
+            parseSearch(YoutubeDL.getInstance().execute(request, SEARCH_PROCESS).out).also {
+                val t2 = SystemClock.elapsedRealtime()
+                Log.d(TAG, "Busca \"$query\" (yt-dlp): preparar ${t1 - t0} ms + yt-dlp ${t2 - t1} ms = ${t2 - t0} ms (${it.size} resultados)")
+            }
         }
     }
 
@@ -100,34 +126,88 @@ object YtDlp {
     }
 
     /**
-     * Baixa só o áudio em MP3, com título, artista e capa embutidos. O arquivo fica no cache do app
-     * até ser copiado para a pasta Música. [onProgress] recebe de 0 a 100.
+     * Baixa só o áudio, sem converter (normalmente M4A/AAC, que o YouTube já fornece e o Android toca),
+     * com título, artista e capa quadrada embutidos. O arquivo fica no cache do app até ser copiado
+     * para a pasta Música. [onProgress] recebe o progresso de 0 a 100 (ou -1 enquanto prepara)
+     * e o tempo restante em segundos (ou -1 se desconhecido).
+     *
+     * São duas chamadas ao yt-dlp: a primeira só extrai as informações (a parte lenta, que resolve os
+     * desafios JavaScript do YouTube); o app troca a capa pela que ele mesmo baixou em paralelo; a
+     * segunda baixa a partir dessas informações, sem extrair de novo.
      */
-    suspend fun download(context: Context, item: OnlineResult, onProgress: (Float) -> Unit): File {
+    suspend fun download(
+        context: Context,
+        item: OnlineResult,
+        isCanceled: () -> Boolean,
+        onProgress: (progress: Float, etaSec: Long) -> Unit,
+    ): File {
         ensureReady(context)
-        return withContext(Dispatchers.IO) {
-            val dir = File(context.cacheDir, "downloads").apply { mkdirs() }
-            dir.listFiles()?.filter { it.name.startsWith(item.id) }?.forEach { it.delete() }
+        return coroutineScope {
+            val dir = File(context.cacheDir, "downloads/${item.id}").apply { deleteRecursively(); mkdirs() }
+            val start = SystemClock.elapsedRealtime()
+            val cover = async(Dispatchers.IO) { CoverArt.fetch(item.id, File(dir, "capa.jpg")) }
 
-            val request = YoutubeDLRequest(item.url)
-                .addOption("--no-playlist")
-                .addOption("-x")
-                .addOption("--audio-format", "mp3")
-                .addOption("--audio-quality", "0")
-                .addOption("--embed-metadata")
-                .addOption("--embed-thumbnail")
-                .addOption("--convert-thumbnails", "jpg")
-                // Cada música vira seu próprio "álbum", para cada uma ter a própria capa na biblioteca
-                .addOption("--parse-metadata", "title:%(album)s")
-                .addOption("--no-mtime")
-                .addOption("-o", File(dir, "%(id)s.%(ext)s").absolutePath)
+            // 1) Informações do vídeo, já com o formato de áudio escolhido (a parte lenta:
+            //    inclui resolver os desafios JavaScript do YouTube)
+            val infoJson = withContext(Dispatchers.IO) {
+                val request = YoutubeDLRequest(item.url)
+                    .addOption("--no-playlist")
+                    .addOption("-f", AUDIO_FORMAT)
+                    .addOption("--dump-single-json")
+                    .addOption("--no-warnings")
+                    .withCache(context)
+                YoutubeDL.getInstance().execute(request, item.id).out
+            }
+            Log.d(TAG, "Informações de ${item.id} em ${SystemClock.elapsedRealtime() - start} ms")
+            if (isCanceled()) throw YoutubeDL.CanceledException()
 
-            YoutubeDL.getInstance().execute(request, item.id) { progress, _, _ -> onProgress(progress) }
+            // Troca as capas do YouTube pela capa quadrada que o app baixou
+            val info = JSONObject(infoJson)
+            val coverFile = cover.await()
+            info.remove("thumbnail")
+            if (coverFile != null) {
+                info.put("thumbnails", JSONArray().put(JSONObject().put("id", "capa").put("url", "file://${coverFile.absolutePath}")))
+            } else {
+                info.remove("thumbnails")
+            }
+            val infoFile = File(dir, "info.json").apply { writeText(info.toString()) }
 
-            File(dir, "${item.id}.mp3").takeIf { it.exists() }
-                ?: throw IOException("O yt-dlp terminou, mas o arquivo MP3 não foi gerado")
+            // 2) Download + metadados + capa, sem converter o áudio
+            withContext(Dispatchers.IO) {
+                val request = YoutubeDLRequest(emptyList())
+                    .addOption("--load-info-json", infoFile.absolutePath)
+                    .addOption("--enable-file-urls")
+                    .addOption("-f", AUDIO_FORMAT)
+                    .addOption("-x")
+                    .addOption("--audio-format", "m4a/best")
+                    .addOption("--embed-metadata")
+                    // Cada música vira seu próprio "álbum", para cada uma ter a própria capa na biblioteca
+                    .addOption("--parse-metadata", "title:%(album)s")
+                    .addOption("--no-mtime")
+                    .addOption("-o", File(dir, "audio.%(ext)s").absolutePath)
+                    .withCache(context)
+                if (coverFile != null) request.addOption("--embed-thumbnail")
+
+                var lastStep = ""
+                YoutubeDL.getInstance().execute(request, item.id) { progress, eta, line ->
+                    onProgress(progress, eta)
+                    val step = line.substringBefore("]")
+                    if (step != lastStep) {
+                        Log.d(TAG, "+${SystemClock.elapsedRealtime() - start} ms  $line")
+                        lastStep = step
+                    }
+                }
+            }
+            Log.d(TAG, "Download de ${item.id} levou ${SystemClock.elapsedRealtime() - start} ms")
+
+            dir.listFiles()?.firstOrNull { it.name.startsWith("audio.") && it.extension in AUDIO_EXTENSIONS }
+                ?: throw IOException("O yt-dlp terminou, mas o arquivo de áudio não foi gerado")
         }
     }
+
+    /** Pasta de cache do yt-dlp: guarda o JavaScript do player do YouTube já processado entre downloads. */
+    private fun YoutubeDLRequest.withCache(context: Context) =
+        addOption("--cache-dir", File(context.cacheDir, "yt-dlp").absolutePath)
 
     fun cancel(id: String) = YoutubeDL.getInstance().destroyProcessById(id)
 }

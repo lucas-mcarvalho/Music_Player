@@ -1,6 +1,7 @@
 package com.lucas.musica
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -26,11 +27,21 @@ import com.lucas.musica.ui.MusicTheme
 import com.lucas.musica.ui.PermissionScreen
 
 class MainActivity : ComponentActivity() {
+    /** Pedido para abrir a tela de downloads (ao tocar na notificação de download). */
+    private var openDownloads by mutableStateOf(false)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        openDownloads = intent.getBooleanExtra(EXTRA_OPEN_DOWNLOADS, false)
         enableEdgeToEdge()
         setContent {
             val vm: MusicViewModel = viewModel()
+            LaunchedEffect(openDownloads) {
+                if (openDownloads) {
+                    vm.downloadsOpen = true
+                    openDownloads = false
+                }
+            }
             val dark = when (vm.themeMode) {
                 ThemeMode.SYSTEM -> isSystemInDarkTheme()
                 ThemeMode.LIGHT -> false
@@ -69,5 +80,16 @@ class MainActivity : ComponentActivity() {
                 else PermissionScreen(onRequest = { launcher.launch(permissions) })
             }
         }
+    }
+
+    // A Activity é singleTop: tocar na notificação com o app aberto chega aqui
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra(EXTRA_OPEN_DOWNLOADS, false)) openDownloads = true
+    }
+
+    companion object {
+        const val EXTRA_OPEN_DOWNLOADS = "abrir_downloads"
     }
 }
