@@ -44,6 +44,7 @@ import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Shuffle
+import androidx.compose.material.icons.rounded.TravelExplore
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -101,7 +102,7 @@ fun HomeScreen(vm: MusicViewModel) {
             SelectionTopBar(vm, if (showingSearch) searchResults else vm.songs)
         } else {
             HomeHeader(vm)
-            SearchBar(query = vm.query, onQueryChange = { vm.query = it })
+            SearchField(query = vm.query, onQueryChange = { vm.query = it }, placeholder = "Buscar músicas, artistas, álbuns")
         }
 
         when {
@@ -161,7 +162,30 @@ private fun HomeHeader(vm: MusicViewModel) {
                 )
             }
         }
+        OnlineButton(onClick = { vm.onlineOpen = true })
+        Spacer(Modifier.width(8.dp))
         ThemeButton(vm)
+    }
+}
+
+@Composable
+private fun OnlineButton(onClick: () -> Unit) {
+    Row(
+        Modifier
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.primaryContainer)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Rounded.TravelExplore, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(
+            "Online",
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onPrimaryContainer,
+        )
     }
 }
 
@@ -197,8 +221,14 @@ private fun ThemeButton(vm: MusicViewModel) {
     }
 }
 
+/** Barra de pesquisa em pílula. Com [onSearch], a busca só roda ao tocar em "pesquisar" no teclado. */
 @Composable
-private fun SearchBar(query: String, onQueryChange: (String) -> Unit) {
+fun SearchField(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    placeholder: String,
+    onSearch: (() -> Unit)? = null,
+) {
     val focus = LocalFocusManager.current
     Row(
         Modifier
@@ -215,7 +245,7 @@ private fun SearchBar(query: String, onQueryChange: (String) -> Unit) {
         Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
             if (query.isEmpty()) {
                 Text(
-                    "Buscar músicas, artistas, álbuns",
+                    placeholder,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodyLarge,
                     maxLines = 1,
@@ -228,7 +258,7 @@ private fun SearchBar(query: String, onQueryChange: (String) -> Unit) {
                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { focus.clearFocus() }),
+                keyboardActions = KeyboardActions(onSearch = { focus.clearFocus(); onSearch?.invoke() }),
                 modifier = Modifier.fillMaxWidth(),
             )
         }
