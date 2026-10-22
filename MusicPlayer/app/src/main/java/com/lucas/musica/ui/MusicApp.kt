@@ -40,10 +40,11 @@ fun MusicApp(vm: MusicViewModel) {
         else confirmDelete = songs
     }
 
-    BackHandler(enabled = selecting || showPlayer || detail != null || vm.query.isNotEmpty()) {
+    BackHandler(enabled = selecting || showPlayer || vm.onlineOpen || detail != null || vm.query.isNotEmpty()) {
         when {
             selecting -> vm.clearSelection()
             showPlayer -> showPlayer = false
+            vm.onlineOpen -> vm.onlineOpen = false
             detail != null -> vm.back()
             else -> vm.query = ""
         }
@@ -52,7 +53,11 @@ fun MusicApp(vm: MusicViewModel) {
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Column(Modifier.fillMaxSize()) {
             Box(Modifier.weight(1f)) {
-                if (detail == null) HomeScreen(vm) else DetailScreen(vm, detail)
+                when {
+                    vm.onlineOpen -> OnlineScreen(vm)
+                    detail == null -> HomeScreen(vm)
+                    else -> DetailScreen(vm, detail)
+                }
             }
             if (selecting) {
                 SelectionActions(vm, if (detail == null) vm.songs else vm.songsFor(detail), detail, onDelete = startDelete)

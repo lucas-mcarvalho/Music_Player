@@ -17,10 +17,16 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.lucas.musica.data.MusicRepository
+import com.lucas.musica.data.PlaybackSession
 import com.lucas.musica.data.Playlist
 import com.lucas.musica.data.PlaylistStore
 import com.lucas.musica.data.Song
 import com.lucas.musica.data.toMediaItem
+import com.lucas.musica.online.Downloads
+import com.lucas.musica.online.OnlineResult
+import com.lucas.musica.online.YtDlp
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import com.lucas.musica.playback.PlaybackService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -72,6 +78,20 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     var homePage by mutableStateOf(0)
 
     val backStack = mutableStateListOf<Detail>()
+
+    // ---- Busca online (yt-dlp) ----
+    var onlineOpen by mutableStateOf(false)
+    var onlineQuery by mutableStateOf("")
+    var onlineResults by mutableStateOf<List<OnlineResult>>(emptyList())
+        private set
+    /** Mensagem de carregamento ("Buscando…"); null quando não está carregando. */
+    var onlineStatus by mutableStateOf<String?>(null)
+        private set
+    var onlineError by mutableStateOf<String?>(null)
+        private set
+    var onlineSearched by mutableStateOf(false)
+        private set
+    private var searchJob: Job? = null
     var songsForPlaylistDialog by mutableStateOf<List<Song>?>(null)
 
     /** IDs das músicas marcadas no modo de seleção (vazio = modo normal). */
@@ -83,8 +103,18 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
 
     private var songsById: Map<Long, Song> = emptyMap()
     private var controller: MediaController? = null
+    private var sessionRestored = false
     private val listener = object : Player.Listener {
-        override fun onEvents(player: Player, events: Player.Events) = sync()
+        override fun onEvents(player: Player, events: Player.Events) {
+            sync()
+            // Só salva depois de restaurar, para não sobrescrever a sessão anterior com uma fila vazia
+            if (sessionRestored && events.containsAny(
+                    Player.EVENT_TIMELINE_CHANGED, Player.EVENT_MEDIA_ITEM_TRANSITION,
+                    Player.EVENT_IS_PLAYING_CHANGED, Player.EVENT_POSITION_DISCONTINUITY,
+                    Player.EVENT_SHUFFLE_MODE_ENABLED_CHANGED, Player.EVENT_REPEAT_MODE_CHANGED,
+                )
+            ) saveSession()
+        }
     }
 
     init {
@@ -93,13 +123,22 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
         future.addListener({
             controller = future.get().also { it.addListener(listener) }
             sync()
+            restoreSession()
         }, ContextCompat.getMainExecutor(app))
+
+        // Música baixada da internet: recarrega a biblioteca para ela aparecer
+        Downloads.onSongSaved = { loadSongs() }
 
         // Atualiza a barra de progresso enquanto toca
         viewModelScope.launch {
+            var ticks = 0
             while (isActive) {
                 delay(500)
-                controller?.takeIf { it.isPlaying }?.let { player = player.copy(position = it.currentPosition) }
+                controller?.takeIf { it.isPlaying }?.let {
+                    player = player.copy(position = it.currentPosition)
+                    // A cada ~5 s guarda a posição, para retomar dali se o app for fechado
+                    if (++ticks % 10 == 0 && sessionRestored) store.savePosition(it.currentPosition)
+                }
             }
         }
     }
@@ -111,7 +150,47 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
             songsById = list.associateBy { it.id }
             loaded = true
             sync()
+            restoreSession()
         }
+    }
+
+    // ---- Lembrar a última música ----
+
+    private fun saveSession() {
+        val c = controller ?: return
+        if (c.mediaItemCount == 0) return
+        store.saveSession(
+            PlaybackSession(
+                queue = (0 until c.mediaItemCount).mapNotNull { c.getMediaItemAt(it).mediaId.toLongOrNull() },
+                index = c.currentMediaItemIndex,
+                positionMs = c.currentPosition,
+                shuffle = c.shuffleModeEnabled,
+                repeatMode = c.repeatMode,
+            )
+        )
+    }
+
+    /**
+     * Ao abrir o app: se o player estiver vazio (o serviço tinha sido encerrado), recarrega a última fila
+     * pausada na mesma posição. Precisa do player conectado e da biblioteca carregada, por isso é chamada
+     * pelos dois lados e só roda uma vez.
+     */
+    private fun restoreSession() {
+        val c = controller ?: return
+        if (!loaded || sessionRestored) return
+        sessionRestored = true
+        if (c.mediaItemCount > 0) return // ainda estava tocando: nada a restaurar
+
+        val session = store.loadSession() ?: return
+        val currentId = session.queue.getOrNull(session.index)
+        // Ignora músicas apagadas desde a última vez
+        val queue = session.queue.mapNotNull { songsById[it] }
+        if (queue.isEmpty()) return
+        val index = queue.indexOfFirst { it.id == currentId }
+        c.shuffleModeEnabled = session.shuffle
+        c.repeatMode = session.repeatMode
+        c.setMediaItems(queue.map { it.toMediaItem() }, index.coerceAtLeast(0), if (index >= 0) session.positionMs else 0L)
+        c.prepare()
     }
 
     private fun sync() {
@@ -225,6 +304,41 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
         store.saveTheme(mode.name)
     }
 
+    // ---- Online ----
+
+    fun searchOnline() {
+        val q = onlineQuery.trim()
+        if (q.isEmpty()) return
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            onlineError = null
+            onlineStatus = "Buscando…"
+            try {
+                onlineResults = YtDlp.search(getApplication(), q) { msg -> viewModelScope.launch { onlineStatus = msg } }
+                onlineSearched = true
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                onlineError = e.message?.lines()?.lastOrNull { it.contains("ERROR:") }?.substringAfter("ERROR:")?.trim()
+                    ?: "Não foi possível buscar. Verifique a internet e tente de novo."
+            } finally {
+                onlineStatus = null
+            }
+        }
+    }
+
+    fun downloadOnline(item: OnlineResult) = Downloads.enqueue(getApplication(), item)
+    fun cancelDownload(id: String) = Downloads.cancel(id)
+
+    fun updateYtDlp() {
+        viewModelScope.launch {
+            toast("Atualizando o yt-dlp…")
+            runCatching { YtDlp.update(getApplication()) }
+                .onSuccess { toast("yt-dlp atualizado (versão $it)") }
+                .onFailure { toast("Não foi possível atualizar o yt-dlp") }
+        }
+    }
+
     // ---- Seleção múltipla ----
 
     fun toggleSelect(song: Song) {
@@ -330,6 +444,8 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
+        if (sessionRestored) saveSession()
+        Downloads.onSongSaved = null
         controller?.run {
             removeListener(listener)
             release()

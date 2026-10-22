@@ -3,7 +3,7 @@
 Aplicativo para tocar as músicas salvas no celular, sem internet, inspirado no player que vem de fábrica nos celulares Xiaomi.
 Feito em **Kotlin** com **Jetpack Compose** (interface) e **Media3/ExoPlayer** (reprodução).
 
-> Status: protótipo (versão 0.1). Funciona de ponta a ponta, mas ainda não tem fila de reprodução visível, equalizador, letras nem timer.
+> Status: protótipo (versão 0.2). Funciona de ponta a ponta, mas ainda não tem fila de reprodução visível, equalizador, letras nem timer.
 
 ---
 
@@ -51,6 +51,18 @@ Feito em **Kotlin** com **Jetpack Compose** (interface) e **Media3/ExoPlayer** (
 - Barra inferior: **Tocar**, **A seguir**, **Playlist**, **Remover** (dentro de playlist/Favoritas) e **Apagar**.
 - **Apagar** remove os arquivos do celular (no Android 11+ o sistema pede confirmação) e limpa a música das playlists, favoritas e da fila.
 
+**Procurar online (YouTube)**
+- Botão **Online** no cabeçalho abre a busca no YouTube (por texto ou colando um link).
+- Resultados com miniatura, duração e canal.
+- **Baixar** extrai só o áudio em **MP3**, com título, artista e capa embutidos, e salva em `Music/Música Online/`. A música aparece sozinha na biblioteca.
+- Vários downloads ficam em fila; dá para cancelar. Continuam com o app fechado, com progresso na notificação.
+- Usa o **yt-dlp** de verdade (via youtubedl-android), que se **atualiza sozinho** a cada 24 h (ou pelo menu ⋮ → *Atualizar yt-dlp*).
+- Baixe apenas conteúdo que você tem direito de usar (seu, Creative Commons ou domínio público). Os termos do YouTube proíbem baixar fora dos recursos oficiais.
+
+**Continuar de onde parou**
+- O app lembra a fila, a música, a posição, o aleatório e o repetir.
+- Ao reabrir (mesmo depois de o sistema encerrar o app), a última música volta **pausada** na mesma posição.
+
 **Aparência**
 - Tema **Claro**, **Escuro** ou **Padrão do sistema** (botão no canto superior direito). A escolha fica salva.
 - Cor de destaque laranja `#FF5A1F`.
@@ -66,13 +78,15 @@ Feito em **Kotlin** com **Jetpack Compose** (interface) e **Media3/ExoPlayer** (
 | Ícones | Material Icons Extended | (via BOM) |
 | Reprodução | AndroidX Media3 (ExoPlayer + MediaSession) | 1.5.1 |
 | Cor da capa | AndroidX Palette | 1.0.0 |
+| Busca e download online | youtubedl-android (yt-dlp + Python + ffmpeg + QuickJS) | 0.18.1 |
+| Miniaturas online | Coil | 2.7.0 |
 | Estado | ViewModel (Lifecycle) | 2.8.7 |
 | Build | Gradle / Android Gradle Plugin | 8.11.1 / 8.7.3 |
 | Java | JDK | 17+ (testado com 21) |
 
 Configuração Android: `minSdk 26` (Android 8.0), `targetSdk 35` / `compileSdk 35` (Android 15).
 
-Nenhuma biblioteca de rede é usada: o app funciona 100% offline.
+A biblioteca, o player e as playlists funcionam 100% offline. Só a tela **Online** usa internet.
 
 ---
 
@@ -115,9 +129,11 @@ Todos os comandos do Gradle rodam **dentro da pasta `MusicPlayer/`**.
 ```bash
 cd ~/Downloads/projects/MusicPlayer
 
-# APK de release (otimizado, ~2 MB) — é o recomendado para instalar no celular
+# APKs de release — um por tipo de processador
 ./gradlew assembleRelease
-# -> app/build/outputs/apk/release/app-release.apk
+# -> app/build/outputs/apk/release/app-arm64-v8a-release.apk    (~54 MB, celulares atuais)
+# -> app/build/outputs/apk/release/app-armeabi-v7a-release.apk  (~48 MB, celulares antigos 32 bits)
+# -> app/build/outputs/apk/release/app-x86_64-release.apk       (~57 MB, emulador)
 
 # APK de debug (maior, permite depuração com logcat/run-as)
 ./gradlew assembleDebug
@@ -137,7 +153,13 @@ A primeira compilação demora alguns minutos (baixa dependências). As seguinte
 O build de release está assinado com a **chave de debug** (`~/.android/debug.keystore`), configurada em `app/build.gradle.kts`.
 Isso basta para instalar e testar, mas **não serve para publicar na Play Store**. Para publicar, crie uma chave própria (`keytool -genkey ...`) e configure um `signingConfig` de release.
 
-O release usa **R8** (`isMinifyEnabled = true` e `isShrinkResources = true`) para remover código não usado. Por isso o APK fica com ~2 MB mesmo incluindo todos os ícones do Material.
+O release usa **R8** (`isMinifyEnabled = true` e `isShrinkResources = true`) para remover código não usado. O código do app em si ocupa ~2 MB; o resto do APK é o Python e o ffmpeg do yt-dlp (bibliotecas nativas). Por isso o projeto gera **um APK por arquitetura** (`splits.abi`), em vez de um único APK de ~190 MB.
+
+Na raiz do repositório ficam prontos:
+- `Musica.apk`: arm64-v8a, para quase todos os celulares de 2017 em diante (inclusive Xiaomi);
+- `Musica-32bits.apk`: armeabi-v7a, para celulares antigos.
+
+O youtubedl-android exige `android:extractNativeLibs="true"` e `jniLibs.useLegacyPackaging = true`, já configurados.
 
 ---
 
@@ -189,7 +211,12 @@ projects/                       # raiz do repositório
                 ├── data/
                 │   ├── Song.kt             # modelos Song e Playlist, conversão p/ MediaItem
                 │   ├── MusicRepository.kt  # leitura das músicas via MediaStore
-                │   └── PlaylistStore.kt    # salvar playlists, favoritas e tema
+                │   └── PlaylistStore.kt    # salvar playlists, favoritas, tema e última sessão
+                ├── online/
+                │   ├── YtDlp.kt            # yt-dlp: iniciar, atualizar, buscar e baixar
+                │   ├── Downloads.kt        # fila de downloads (um por vez) e estado de cada um
+                │   ├── DownloadService.kt  # serviço em primeiro plano + notificação de progresso
+                │   └── MediaPublisher.kt   # copia o MP3 para Music/Música Online e indexa
                 ├── playback/
                 │   └── PlaybackService.kt  # ExoPlayer + MediaSession em segundo plano
                 └── ui/
@@ -197,6 +224,7 @@ projects/                       # raiz do repositório
                     ├── HomeScreen.kt       # cabeçalho, busca, abas e listas
                     ├── DetailScreen.kt     # álbum / artista / pasta / playlist
                     ├── NowPlayingScreen.kt # tela "Tocando agora"
+                    ├── OnlineScreen.kt     # tela "Procurar online"
                     ├── Selection.kt        # barras e diálogo do modo de seleção
                     ├── Components.kt       # capa, linha de música, mini player, diálogos
                     ├── Theme.kt            # cores dos temas claro e escuro
@@ -277,6 +305,25 @@ Salva playlists (JSON), favoritas (conjunto de IDs) e o tema em **SharedPreferen
 
 O Media3 cria a notificação de mídia automaticamente. Se o app for removido dos recentes e nada estiver tocando, o serviço se encerra (`onTaskRemoved`).
 
+### `online/`: busca e download no YouTube
+
+```
+OnlineScreen ─► MusicViewModel.searchOnline() ─► YtDlp.search()  ─► yt-dlp "ytsearch20:…" --flat-playlist -J
+             └► Downloads.enqueue() ─► DownloadService (notificação, mantém o processo vivo)
+                     └► YtDlp.download() ─► yt-dlp -x --audio-format mp3 --embed-thumbnail --embed-metadata
+                             └► MediaPublisher.publish() ─► MediaStore (Music/Música Online) + scanner
+                                     └► Downloads.onSongSaved ─► MusicViewModel.loadSongs()
+```
+
+- **`YtDlp.ensureReady`** extrai o Python na primeira vez (alguns segundos) e atualiza o yt-dlp pelo GitHub se a última atualização tiver mais de 24 h. A versão embutida na biblioteca envelhece rápido e o YouTube muda com frequência, por isso a atualização automática é importante.
+- O MP3 é gerado primeiro no cache do app (`cache/downloads/<id>.mp3`) e depois copiado para a pasta pública. `--parse-metadata "title:%(album)s"` faz cada música virar o próprio "álbum", para cada uma ter sua capa.
+- O progresso vem do callback do yt-dlp (0–100; −1 enquanto o tamanho é desconhecido). Ao chegar em 100% ainda falta converter para MP3 e embutir a capa ("Convertendo…").
+- Cancelar chama `destroyProcessById` no processo do yt-dlp.
+
+### Lembrar a última música
+
+O `MusicViewModel` salva a fila (IDs), o índice, a posição, o aleatório e o repetir em `PlaylistStore` sempre que o player muda de música, pausa, faz *seek* ou muda de modo, e a posição a cada ~5 s enquanto toca. Ao abrir o app, `restoreSession()` espera o player conectar **e** a biblioteca carregar. Se o player estiver vazio, recarrega a fila pausada na posição salva, ignorando músicas apagadas.
+
 ### `ui/MusicApp.kt`
 Raiz da interface:
 - mostra a `HomeScreen` ou a `DetailScreen` do topo da pilha;
@@ -321,6 +368,8 @@ Esquemas de cores claro e escuro do Material 3. Define também `LocalContentColo
 | `POST_NOTIFICATIONS` | Android 13+ | mostrar a notificação do player |
 | `FOREGROUND_SERVICE` / `FOREGROUND_SERVICE_MEDIA_PLAYBACK` | sempre | tocar em segundo plano |
 | `WAKE_LOCK` | sempre | não parar com a tela desligada |
+| `INTERNET` | sempre | busca, download e atualização do yt-dlp (só na tela Online) |
+| `FOREGROUND_SERVICE_DATA_SYNC` | sempre | continuar os downloads com o app fechado |
 
 `android:requestLegacyExternalStorage="true"` permite apagar diretamente no Android 10.
 No Android 11+ o app usa `MediaStore.createDeleteRequest`, e o **sistema** mostra a confirmação.
@@ -330,7 +379,9 @@ No Android 11+ o app usa `MediaStore.createDeleteRequest`, e o **sistema** mostr
 ## Onde os dados ficam salvos
 
 - **Músicas:** não são copiadas; o app só lê os arquivos que já estão no celular.
-- **Playlists, favoritas e tema:** `/data/data/com.lucas.musica/shared_prefs/biblioteca.xml` (apagados se o app for desinstalado).
+- **Playlists, favoritas, tema e última sessão:** `/data/data/com.lucas.musica/shared_prefs/biblioteca.xml` (apagados se o app for desinstalado).
+- **Músicas baixadas:** `Music/Música Online/` no armazenamento do celular (continuam lá mesmo desinstalando o app).
+- **yt-dlp/Python:** `/data/data/com.lucas.musica/no_backup/youtubedl-android/` (extraído na primeira busca).
 - As playlists guardam o **ID do MediaStore** de cada música. Se um arquivo for apagado fora do app, ele some da playlist automaticamente.
 
 ---
@@ -382,6 +433,8 @@ ffmpeg -f lavfi -i "sine=frequency=440:duration=40" \
 | Notebook barulhento depois de compilar | o Gradle fica rodando em segundo plano | rode `./gradlew --stop` |
 | Lista ordena "Faixa 10" antes de "Faixa 2" | ordenação alfabética simples | pendente (usar ordenação natural) |
 | Botão "Remover" e exclusão no Android 8–10 | ainda não testados em aparelho real | pendente |
+| Downloads começam a falhar de repente | o YouTube mudou e o yt-dlp ficou desatualizado | menu ⋮ → **Atualizar yt-dlp** (ou esperar a atualização automática) |
+| Com teclado físico, Enter na busca online pode fechar a tela | o Enter também "clica" no botão voltar que recebe o foco | pendente (no teclado da tela funciona normal) |
 
 ---
 
@@ -393,6 +446,7 @@ ffmpeg -f lavfi -i "sine=frequency=440:duration=40" \
 - [ ] **Letras** sincronizadas (arquivos `.lrc`)
 - [ ] **Timer para dormir**
 - [ ] Ordenação configurável (nome, data, duração) e ordenação natural
-- [ ] Lembrar a última música e posição ao reabrir o app
+- [x] Lembrar a última música e posição ao reabrir o app
+- [x] Procurar e baixar músicas online (yt-dlp)
 - [ ] Widget na tela inicial
 - [ ] Chave de assinatura própria para publicar na Play Store

@@ -5,6 +5,15 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /** Guarda playlists e favoritas em SharedPreferences (num app final, trocar por Room). */
+/** O que estava tocando quando o app foi fechado. */
+data class PlaybackSession(
+    val queue: List<Long>,
+    val index: Int,
+    val positionMs: Long,
+    val shuffle: Boolean,
+    val repeatMode: Int,
+)
+
 class PlaylistStore(context: Context) {
     private val prefs = context.getSharedPreferences("biblioteca", Context.MODE_PRIVATE)
 
@@ -23,6 +32,32 @@ class PlaylistStore(context: Context) {
             json.put(JSONObject().put("id", p.id).put("name", p.name).put("songs", JSONArray(p.songIds)))
         }
         prefs.edit().putString("playlists", json.toString()).apply()
+    }
+
+    fun saveSession(s: PlaybackSession) {
+        prefs.edit()
+            .putString("sessao_fila", s.queue.joinToString(","))
+            .putInt("sessao_indice", s.index)
+            .putLong("sessao_posicao", s.positionMs)
+            .putBoolean("sessao_aleatorio", s.shuffle)
+            .putInt("sessao_repetir", s.repeatMode)
+            .apply()
+    }
+
+    fun savePosition(positionMs: Long) {
+        prefs.edit().putLong("sessao_posicao", positionMs).apply()
+    }
+
+    fun loadSession(): PlaybackSession? {
+        val queue = prefs.getString("sessao_fila", null)?.split(",")?.mapNotNull { it.toLongOrNull() }
+        if (queue.isNullOrEmpty()) return null
+        return PlaybackSession(
+            queue = queue,
+            index = prefs.getInt("sessao_indice", 0),
+            positionMs = prefs.getLong("sessao_posicao", 0),
+            shuffle = prefs.getBoolean("sessao_aleatorio", false),
+            repeatMode = prefs.getInt("sessao_repetir", 0),
+        )
     }
 
     fun loadTheme(): String? = prefs.getString("theme", null)

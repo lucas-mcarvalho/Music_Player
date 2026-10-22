@@ -12,8 +12,23 @@ android {
         applicationId = "com.lucas.musica"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1"
+        versionCode = 2
+        versionName = "0.2"
+    }
+
+    // Um APK por tipo de processador: Python + ffmpeg do yt-dlp ocupam ~45 MB por arquitetura
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86_64")
+            isUniversalApk = false
+        }
+    }
+
+    packaging {
+        // O youtubedl-android precisa que as bibliotecas nativas sejam extraídas na instalação
+        jniLibs.useLegacyPackaging = true
     }
 
     buildTypes {
@@ -48,6 +63,13 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("androidx.palette:palette-ktx:1.0.0")
+
+    implementation("io.coil-kt:coil-compose:2.7.0")
+
+    // yt-dlp (com Python embutido) e ffmpeg para buscar e baixar músicas online
+    val ytdl = "0.18.1"
+    implementation("io.github.junkfood02.youtubedl-android:library:$ytdl")
+    implementation("io.github.junkfood02.youtubedl-android:ffmpeg:$ytdl")
 
     val media3 = "1.5.1"
     implementation("androidx.media3:media3-exoplayer:$media3")
