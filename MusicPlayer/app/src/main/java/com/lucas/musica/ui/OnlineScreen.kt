@@ -26,6 +26,8 @@ import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.TravelExplore
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -35,6 +37,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -59,6 +62,7 @@ import com.lucas.musica.online.YtDlp
 
 @Composable
 fun OnlineScreen(vm: MusicViewModel) {
+    LaunchedEffect(Unit) { vm.prewarmOnline() }
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         OnlineTopBar(vm)
         SearchField(
@@ -95,7 +99,7 @@ fun OnlineScreen(vm: MusicViewModel) {
                 Text("Procurar músicas online", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Pesquise no YouTube e baixe o áudio em MP3. As músicas baixadas aparecem na biblioteca, " +
+                    "Pesquise no YouTube e baixe o áudio. As músicas baixadas aparecem na biblioteca, " +
                         "na pasta \"Música Online\".",
                     textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -139,6 +143,13 @@ private fun OnlineTopBar(vm: MusicViewModel) {
             fontWeight = FontWeight.Bold,
             modifier = Modifier.weight(1f),
         )
+        // Downloads, com a quantidade em andamento/na fila num selo
+        val active = Downloads.states.values.count { it.active }
+        IconButton(onClick = { vm.downloadsOpen = true }) {
+            BadgedBox(badge = { if (active > 0) Badge { Text("$active") } }) {
+                Icon(Icons.Rounded.Download, "Downloads")
+            }
+        }
         Box {
             IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, "Mais opções") }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
@@ -209,8 +220,8 @@ private fun OnlineResultRow(
             val subtitle = when (state?.status) {
                 DownloadStatus.QUEUED -> "Na fila…"
                 DownloadStatus.DOWNLOADING ->
-                    if (state.progress >= 0) "Baixando ${(state.progress * 100).toInt()}%" else "Baixando…"
-                DownloadStatus.CONVERTING -> "Convertendo para MP3…"
+                    if (state.progress >= 0) "Baixando ${(state.progress * 100).toInt()}%" else "Preparando…"
+                DownloadStatus.CONVERTING -> "Finalizando…"
                 DownloadStatus.DONE -> "Salva na biblioteca"
                 DownloadStatus.FAILED -> state.error ?: "Falhou"
                 else -> item.channel

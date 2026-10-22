@@ -62,7 +62,11 @@ class DownloadService : Service() {
             .setOnlyAlertOnce(true)
             .setOngoing(true)
             .setContentIntent(
-                PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
+                PendingIntent.getActivity(
+                    this, 1,
+                    Intent(this, MainActivity::class.java).putExtra(MainActivity.EXTRA_OPEN_DOWNLOADS, true),
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+                )
             )
             .apply {
                 when (current?.status) {

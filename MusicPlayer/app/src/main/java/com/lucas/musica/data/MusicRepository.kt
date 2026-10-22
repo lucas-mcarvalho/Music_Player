@@ -32,6 +32,8 @@ object MusicRepository {
             val dataCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
 
             while (c.moveToNext()) {
+                val path = c.getString(dataCol).orEmpty()
+                if (isMessagingAudio(path)) continue
                 val id = c.getLong(idCol)
                 val artist = c.getString(artistCol)
                 songs += Song(
@@ -42,11 +44,20 @@ object MusicRepository {
                     albumId = c.getLong(albumIdCol),
                     duration = c.getLong(durationCol),
                     uri = ContentUris.withAppendedId(collection, id),
-                    folder = c.getString(dataCol)?.let { File(it).parent } ?: "",
+                    folder = File(path).parent ?: "",
                 )
             }
         }
         android.util.Log.d("Musica", "MediaStore retornou ${songs.size} músicas")
         return songs.sortedBy { it.title.lowercase() }
+    }
+
+    /**
+     * Áudios de apps de mensagem (mensagens de voz, áudios recebidos) não são músicas.
+     * Cobre o WhatsApp e o WhatsApp Business, tanto na pasta atual (Android/media) quanto na antiga.
+     */
+    private fun isMessagingAudio(path: String): Boolean {
+        val p = path.lowercase()
+        return "/android/media/com.whatsapp" in p || "/whatsapp/media/" in p || "/whatsapp business/media/" in p
     }
 }

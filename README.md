@@ -54,10 +54,15 @@ Feito em **Kotlin** com **Jetpack Compose** (interface) e **Media3/ExoPlayer** (
 **Procurar online (YouTube)**
 - Botão **Online** no cabeçalho abre a busca no YouTube (por texto ou colando um link).
 - Resultados com miniatura, duração e canal.
-- **Baixar** extrai só o áudio em **MP3**, com título, artista e capa embutidos, e salva em `Music/Música Online/`. A música aparece sozinha na biblioteca.
-- Vários downloads ficam em fila; dá para cancelar. Continuam com o app fechado, com progresso na notificação.
+- **Baixar** salva só o áudio, **sem reconverter** (normalmente M4A/AAC, o formato que o próprio YouTube fornece), com título, artista e **capa quadrada** embutidos, em `Music/Música Online/`. A música aparece sozinha na biblioteca.
+- Até **2 downloads ao mesmo tempo**; os demais ficam na fila. Dá para cancelar.
+- Tela **Downloads** (ícone ⬇ com contador na tela Online, ou tocando na notificação): progresso de cada download com tempo restante, posição na fila, concluídos (com ▶ para tocar) e erros (com botão de tentar de novo).
+- A busca por texto consulta o YouTube **direto** (~1 s); links e falhas da busca direta usam o yt-dlp. Continuam com o app fechado, com progresso na notificação.
 - Usa o **yt-dlp** de verdade (via youtubedl-android), que se **atualiza sozinho** a cada 24 h (ou pelo menu ⋮ → *Atualizar yt-dlp*).
 - Baixe apenas conteúdo que você tem direito de usar (seu, Creative Commons ou domínio público). Os termos do YouTube proíbem baixar fora dos recursos oficiais.
+
+**Áudios de mensagens ficam de fora**
+- Mensagens de voz e áudios do WhatsApp e do WhatsApp Business não aparecem na biblioteca.
 
 **Continuar de onde parou**
 - O app lembra a fila, a música, a posição, o aleatório e o repetir.
@@ -214,9 +219,11 @@ projects/                       # raiz do repositório
                 │   └── PlaylistStore.kt    # salvar playlists, favoritas, tema e última sessão
                 ├── online/
                 │   ├── YtDlp.kt            # yt-dlp: iniciar, atualizar, buscar e baixar
-                │   ├── Downloads.kt        # fila de downloads (um por vez) e estado de cada um
+                │   ├── Downloads.kt        # fila de downloads (2 ao mesmo tempo) e estado de cada um
+                │   ├── CoverArt.kt         # baixa a capa do vídeo e recorta em quadrado
+                │   ├── YouTubeSearch.kt    # busca direta na API do YouTube (sem yt-dlp)
                 │   ├── DownloadService.kt  # serviço em primeiro plano + notificação de progresso
-                │   └── MediaPublisher.kt   # copia o MP3 para Music/Música Online e indexa
+                │   └── MediaPublisher.kt   # copia o áudio para Music/Música Online e indexa
                 ├── playback/
                 │   └── PlaybackService.kt  # ExoPlayer + MediaSession em segundo plano
                 └── ui/
@@ -225,6 +232,7 @@ projects/                       # raiz do repositório
                     ├── DetailScreen.kt     # álbum / artista / pasta / playlist
                     ├── NowPlayingScreen.kt # tela "Tocando agora"
                     ├── OnlineScreen.kt     # tela "Procurar online"
+                    ├── DownloadsScreen.kt  # tela "Downloads" (progresso e fila)
                     ├── Selection.kt        # barras e diálogo do modo de seleção
                     ├── Components.kt       # capa, linha de música, mini player, diálogos
                     ├── Theme.kt            # cores dos temas claro e escuro
@@ -308,16 +316,38 @@ O Media3 cria a notificação de mídia automaticamente. Se o app for removido d
 ### `online/`: busca e download no YouTube
 
 ```
-OnlineScreen ─► MusicViewModel.searchOnline() ─► YtDlp.search()  ─► yt-dlp "ytsearch20:…" --flat-playlist -J
+OnlineScreen ─► MusicViewModel.searchOnline() ─► YtDlp.search() ─► YouTubeSearch (API interna do YouTube, ~1 s)
+                                                                  └► se falhar ou for link: yt-dlp "ytsearch20:…" --flat-playlist -J
              └► Downloads.enqueue() ─► DownloadService (notificação, mantém o processo vivo)
-                     └► YtDlp.download() ─► yt-dlp -x --audio-format mp3 --embed-thumbnail --embed-metadata
-                             └► MediaPublisher.publish() ─► MediaStore (Music/Música Online) + scanner
-                                     └► Downloads.onSongSaved ─► MusicViewModel.loadSongs()
+                     └► YtDlp.download()
+                           ├─ CoverArt.fetch()  (em paralelo: capa do i.ytimg.com, recortada em quadrado)
+                           ├─ yt-dlp #1: -f "bestaudio[ext=m4a]/bestaudio" --dump-single-json
+                           │     (o app troca as capas do JSON pela capa local: file://…/capa.jpg)
+                           └─ yt-dlp #2: --load-info-json … -x --audio-format m4a/best --embed-metadata --embed-thumbnail
+                                 └► MediaPublisher.publish() ─► MediaStore (Music/Música Online) + scanner
+                                       └► Downloads.onSongSaved ─► MusicViewModel.loadSongs()
 ```
 
 - **`YtDlp.ensureReady`** extrai o Python na primeira vez (alguns segundos) e atualiza o yt-dlp pelo GitHub se a última atualização tiver mais de 24 h. A versão embutida na biblioteca envelhece rápido e o YouTube muda com frequência, por isso a atualização automática é importante.
-- O MP3 é gerado primeiro no cache do app (`cache/downloads/<id>.mp3`) e depois copiado para a pasta pública. `--parse-metadata "title:%(album)s"` faz cada música virar o próprio "álbum", para cada uma ter sua capa.
-- O progresso vem do callback do yt-dlp (0–100; −1 enquanto o tamanho é desconhecido). Ao chegar em 100% ainda falta converter para MP3 e embutir a capa ("Convertendo…").
+- **Por que duas chamadas ao yt-dlp:** sozinho, o yt-dlp testa as capas da maior para a menor, e várias não existem (~2 s cada, ~10 s por música). Extraindo as informações primeiro, o app troca a lista de capas pela que ele mesmo baixou, e a segunda chamada (`--load-info-json`) baixa sem extrair de novo.
+- **Sem conversão:** o áudio M4A (AAC) do YouTube é salvo como veio. Converter para MP3 custava ~5 s no emulador (mais no celular) e ainda perdia qualidade.
+- O cache do yt-dlp fica em `cache/yt-dlp` (`--cache-dir`). Os arquivos temporários ficam em `cache/downloads/<id>/` e são apagados depois de copiados para a pasta pública. `--parse-metadata "title:%(album)s"` faz cada música virar o próprio "álbum", para cada uma ter sua capa.
+- O progresso vem do callback do yt-dlp (0–100; −1 enquanto prepara, mostrado como "Preparando…"). Ao chegar em 100% ainda falta embutir metadados e capa ("Finalizando…").
+- O log `YtDlp` (logcat) mostra o tempo de cada etapa, útil para achar gargalos.
+
+**Tempo por música** (Ice Flow, 2:23, medido no emulador):
+
+| Etapa | Antes | Agora |
+|---|---|---|
+| Extrair informações (inclui o desafio JavaScript do YouTube, ~11 s) | ~15 s | ~18 s |
+| Procurar a capa | ~10 s | ~0,2 s (em paralelo) |
+| Baixar o áudio (~2,2 MB) | ~1,5 s | ~1 s |
+| Converter para MP3 | ~5 s | 0 |
+| Segunda chamada ao yt-dlp | 0 | ~2,5 s |
+| **Total** | **~35 s** | **~23 s** |
+
+O que sobra é quase todo o desafio JavaScript, resolvido pelo QuickJS (o único motor JS disponível no Android). Foi testado o cliente `android_vr` do YouTube, que dispensava o desafio, mas ele não entrega mais áudio.
+
 - Cancelar chama `destroyProcessById` no processo do yt-dlp.
 
 ### Lembrar a última música

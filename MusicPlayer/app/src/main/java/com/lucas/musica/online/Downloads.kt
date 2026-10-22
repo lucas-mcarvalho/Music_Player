@@ -19,12 +19,18 @@ data class DownloadState(
     /** De 0 a 1, ou negativo enquanto o yt-dlp ainda não sabe o tamanho do arquivo. */
     val progress: Float = -1f,
     val error: String? = null,
+    /** Tempo restante em segundos, ou -1 se desconhecido. */
+    val etaSec: Long = -1,
+    /** Ordem em que foi pedido (define a posição na fila). */
+    val order: Long = 0,
+    /** ID da música salva no MediaStore, para poder tocá-la direto da tela de downloads. */
+    val mediaId: Long? = null,
 ) {
     val active get() = status == DownloadStatus.QUEUED || status == DownloadStatus.DOWNLOADING || status == DownloadStatus.CONVERTING
 }
 
 /**
- * Fila de downloads, um por vez. Vive enquanto o processo do app existir; o [DownloadService]
+ * Fila de downloads, até [PARALLEL] ao mesmo tempo. Vive enquanto o processo do app existir; o [DownloadService]
  * mantém o processo vivo (e mostra a notificação) enquanto houver downloads ativos.
  */
 object Downloads {
@@ -35,18 +41,29 @@ object Downloads {
     var onSongSaved: (() -> Unit)? = null
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private const val PARALLEL = 2
+    private var nextOrder = 0L
     private val queue = Channel<OnlineResult>(Channel.UNLIMITED)
-    private var worker: Job? = null
+    private var workers: List<Job> = emptyList()
 
     fun enqueue(context: Context, item: OnlineResult) {
         if (states[item.id]?.active == true) return
-        states[item.id] = DownloadState(item, DownloadStatus.QUEUED)
+        states[item.id] = DownloadState(item, DownloadStatus.QUEUED, order = nextOrder++)
         val app = context.applicationContext
-        if (worker?.isActive != true) {
-            worker = scope.launch { for (next in queue) process(app, next) }
+        if (workers.none { it.isActive }) {
+            // Vários consumidores no mesmo canal: cada música da fila vai para o primeiro que estiver livre
+            workers = List(PARALLEL) { scope.launch { for (next in queue) process(app, next) } }
         }
         queue.trySend(item)
         DownloadService.start(app)
+    }
+
+    /** Todos os downloads, na ordem em que foram pedidos. */
+    fun ordered(): List<DownloadState> = states.values.sortedBy { it.order }
+
+    /** Tira da lista os downloads que já terminaram (concluídos, com erro ou cancelados). */
+    fun clearFinished() {
+        states.values.filter { !it.active }.forEach { states.remove(it.item.id) }
     }
 
     fun cancel(id: String) {
@@ -58,20 +75,24 @@ object Downloads {
 
     private suspend fun process(app: Context, item: OnlineResult) {
         if (states[item.id]?.status != DownloadStatus.QUEUED) return // cancelado enquanto esperava
-        set(item.id) { it.copy(status = DownloadStatus.DOWNLOADING, progress = -1f) }
+        set(item.id) { it.copy(status = DownloadStatus.DOWNLOADING, progress = -1f, etaSec = -1, error = null) }
         try {
-            val file = YtDlp.download(app, item) { p ->
+            val file = YtDlp.download(app, item, isCanceled = { states[item.id]?.status == DownloadStatus.CANCELED }) { p, eta ->
                 scope.launch(Dispatchers.Main) {
                     set(item.id) {
                         if (it.status == DownloadStatus.CANCELED) it
-                        // Ao chegar em 100% o yt-dlp ainda converte para MP3 e embute a capa
-                        else it.copy(status = if (p >= 100f) DownloadStatus.CONVERTING else DownloadStatus.DOWNLOADING, progress = p / 100f)
+                        // Ao chegar em 100% o yt-dlp ainda embute os metadados e a capa
+                        else it.copy(
+                            status = if (p >= 100f) DownloadStatus.CONVERTING else DownloadStatus.DOWNLOADING,
+                            progress = p / 100f,
+                            etaSec = eta,
+                        )
                     }
                 }
             }
             set(item.id) { it.copy(status = DownloadStatus.CONVERTING, progress = 1f) }
-            MediaPublisher.publish(app, file, item.title)
-            set(item.id) { it.copy(status = DownloadStatus.DONE) }
+            val mediaId = MediaPublisher.publish(app, file, item.title)
+            set(item.id) { it.copy(status = DownloadStatus.DONE, mediaId = mediaId) }
             withContext(Dispatchers.Main) { onSongSaved?.invoke() }
         } catch (e: Exception) {
             set(item.id) {

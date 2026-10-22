@@ -142,7 +142,6 @@ fun HomeScreen(vm: MusicViewModel) {
 
 @Composable
 private fun HomeHeader(vm: MusicViewModel) {
-    val albums = remember(vm.songs) { vm.songs.distinctBy { it.albumId }.size }
     val artists = remember(vm.songs) { vm.songs.distinctBy { it.artist }.size }
     Row(
         Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 12.dp, bottom = 12.dp),
@@ -156,9 +155,11 @@ private fun HomeHeader(vm: MusicViewModel) {
             )
             if (vm.loaded) {
                 Text(
-                    "${vm.songs.size} músicas · $artists artistas · $albums álbuns",
+                    "${vm.songs.size} músicas · $artists artistas",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
