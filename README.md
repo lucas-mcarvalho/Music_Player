@@ -5,10 +5,22 @@ Feito em **Kotlin** com **Jetpack Compose** (interface) e **Media3/ExoPlayer** (
 
 > Status: protótipo (versão 0.2). Funciona de ponta a ponta, mas ainda não tem fila de reprodução visível, equalizador, letras nem timer.
 
+## Download
+
+[![Baixar a última versão](https://img.shields.io/github/v/release/lucas-mcarvalho/Music_Player?label=Baixar&style=for-the-badge&color=FF5A1F)](https://github.com/lucas-mcarvalho/Music_Player/releases/latest)
+
+| Arquivo | Para quem |
+|---|---|
+| [**Musica.apk**](https://github.com/lucas-mcarvalho/Music_Player/raw/develop/Musica.apk) | Quase todos os celulares atuais (arm64), incluindo Xiaomi |
+| [**Musica-32bits.apk**](https://github.com/lucas-mcarvalho/Music_Player/raw/develop/Musica-32bits.apk) | Só celulares bem antigos (32 bits), se o primeiro não instalar |
+
+Todas as versões, com as notas de cada uma, ficam em **[Releases](https://github.com/lucas-mcarvalho/Music_Player/releases)**. Para instalar, veja [Como instalar no celular](#como-instalar-no-celular).
+
 ---
 
 ## Sumário
 
+- [Download](#download)
 - [Funcionalidades](#funcionalidades)
 - [Tecnologias](#tecnologias)
 - [Requisitos](#requisitos)
