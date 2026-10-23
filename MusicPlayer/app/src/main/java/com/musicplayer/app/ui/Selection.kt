@@ -113,8 +113,8 @@ fun ConfirmDeleteDialog(count: Int, onConfirm: () -> Unit, onDismiss: () -> Unit
         title = { Text(if (count == 1) "Apagar música?" else "Apagar $count músicas?") },
         text = { Text("Os arquivos serão apagados do celular. Essa ação não pode ser desfeita.") },
         confirmButton = {
-            TextButton(onClick = onConfirm) { Text("Apagar", color = MaterialTheme.colorScheme.error) }
+            TextButton(onClick = onConfirm) { Text("Apagar do celular", color = MaterialTheme.colorScheme.error) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Manter") } },
     )
 }

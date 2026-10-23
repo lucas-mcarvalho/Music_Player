@@ -244,11 +244,19 @@ private fun OnlineResultRow(
 
 @Composable
 private fun DownloadButton(state: DownloadState?, onDownload: () -> Unit, onCancel: () -> Unit) {
-    Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+    val cancellable = state?.status == DownloadStatus.QUEUED || state?.status == DownloadStatus.DOWNLOADING
+    // A área de toque é o quadrado inteiro de 48 dp, não só o ✕ pequeno no meio
+    Box(
+        Modifier
+            .size(48.dp)
+            .clip(CircleShape)
+            .then(if (cancellable) Modifier.clickable(onClickLabel = "Cancelar download", onClick = onCancel) else Modifier),
+        contentAlignment = Alignment.Center,
+    ) {
         when (state?.status) {
             DownloadStatus.QUEUED, DownloadStatus.CONVERTING -> {
                 CircularProgressIndicator(Modifier.size(32.dp), strokeWidth = 3.dp)
-                if (state.status == DownloadStatus.QUEUED) CancelIcon(onCancel)
+                if (state.status == DownloadStatus.QUEUED) CancelIcon()
             }
             DownloadStatus.DOWNLOADING -> {
                 if (state.progress >= 0) {
@@ -261,12 +269,12 @@ private fun DownloadButton(state: DownloadState?, onDownload: () -> Unit, onCanc
                 } else {
                     CircularProgressIndicator(Modifier.size(32.dp), strokeWidth = 3.dp)
                 }
-                CancelIcon(onCancel)
+                CancelIcon()
             }
             DownloadStatus.DONE ->
                 Icon(Icons.Rounded.CheckCircle, "Baixada", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
             DownloadStatus.FAILED ->
-                IconButton(onClick = onDownload) { Icon(Icons.Rounded.Refresh, "Tentar de novo", tint = MaterialTheme.colorScheme.error) }
+                IconButton(onClick = onDownload) { Icon(Icons.Rounded.Refresh, "Tentar baixar de novo", tint = MaterialTheme.colorScheme.error) }
             else ->
                 IconButton(onClick = onDownload) { Icon(Icons.Rounded.Download, "Baixar", tint = MaterialTheme.colorScheme.primary) }
         }
@@ -274,9 +282,6 @@ private fun DownloadButton(state: DownloadState?, onDownload: () -> Unit, onCanc
 }
 
 @Composable
-private fun CancelIcon(onCancel: () -> Unit) {
-    Icon(
-        Icons.Rounded.Close, "Cancelar",
-        modifier = Modifier.size(32.dp).clip(CircleShape).clickable(onClick = onCancel).padding(8.dp),
-    )
+private fun CancelIcon() {
+    Icon(Icons.Rounded.Close, "Cancelar download", modifier = Modifier.size(16.dp))
 }

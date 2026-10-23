@@ -105,8 +105,8 @@ fun DetailScreen(vm: MusicViewModel, detail: Detail) {
             onDismissRequest = { confirmDelete = false },
             title = { Text("Excluir playlist?") },
             text = { Text("A playlist \"${detail.title}\" será excluída. As músicas continuam no celular.") },
-            confirmButton = { TextButton(onClick = { confirmDelete = false; vm.deletePlaylist(detail.key) }) { Text("Excluir") } },
-            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancelar") } },
+            confirmButton = { TextButton(onClick = { confirmDelete = false; vm.deletePlaylist(detail.key) }) { Text("Excluir playlist", color = MaterialTheme.colorScheme.error) } },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Manter") } },
         )
     }
 }

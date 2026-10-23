@@ -49,7 +49,24 @@ object MusicRepository {
             }
         }
         android.util.Log.d("Musica", "MediaStore retornou ${songs.size} músicas")
-        return songs.sortedBy { it.title.lowercase() }
+        return songs.sortedWith(compareBy(NaturalOrder) { it.title })
+    }
+
+    /** Compara textos tratando números como números: "Faixa 2" vem antes de "Faixa 10". */
+    private object NaturalOrder : Comparator<String> {
+        private val chunk = Regex("""\d+|\D+""")
+        override fun compare(a: String, b: String): Int {
+            val pa = chunk.findAll(a.lowercase()).map { it.value }.toList()
+            val pb = chunk.findAll(b.lowercase()).map { it.value }.toList()
+            for (i in 0 until minOf(pa.size, pb.size)) {
+                val x = pa[i]; val y = pb[i]
+                val c = if (x[0].isDigit() && y[0].isDigit()) {
+                    x.trimStart('0').length.compareTo(y.trimStart('0').length).takeIf { it != 0 } ?: x.compareTo(y)
+                } else x.compareTo(y)
+                if (c != 0) return c
+            }
+            return pa.size.compareTo(pb.size)
+        }
     }
 
     /**

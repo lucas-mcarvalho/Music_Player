@@ -8,10 +8,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
 
+/** Laranja da marca. No tema escuro é a cor principal; no claro, só para ícones sobre fundo escuro. */
 val Accent = Color(0xFFFF5A1F)
 
+/** Laranja mais fechado para o tema claro: texto branco sobre ele (5,2:1) e ele como texto (4,8:1) passam na WCAG AA. */
+private val AccentOnLight = Color(0xFFC2410C)
+
 private val Light = lightColorScheme(
-    primary = Accent,
+    primary = AccentOnLight,
     onPrimary = Color.White,
     primaryContainer = Color(0xFFFFE3D6),
     onPrimaryContainer = Color(0xFF5C1D00),
@@ -22,7 +26,7 @@ private val Light = lightColorScheme(
     surface = Color(0xFFF7F7F8),
     onSurface = Color(0xFF151515),
     surfaceVariant = Color(0xFFECECEF),
-    onSurfaceVariant = Color(0xFF6B6B70),
+    onSurfaceVariant = Color(0xFF616166), // 5,2:1 até sobre as barras cinza
     surfaceContainerLowest = Color.White,
     surfaceContainerLow = Color(0xFFF7F7F8),
     surfaceContainer = Color(0xFFFFFFFF),
@@ -34,7 +38,7 @@ private val Light = lightColorScheme(
 
 private val Dark = darkColorScheme(
     primary = Accent,
-    onPrimary = Color.White,
+    onPrimary = Color(0xFF1A0A00), // texto quase preto sobre o laranja vivo: 6,2:1 (branco dava 3,1:1)
     primaryContainer = Color(0xFF4A2312),
     onPrimaryContainer = Color(0xFFFFDBCB),
     secondaryContainer = Color(0xFF3D2216),

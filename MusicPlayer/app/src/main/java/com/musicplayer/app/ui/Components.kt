@@ -8,6 +8,8 @@ import android.os.Build
 import android.provider.MediaStore
 import android.util.LruCache
 import android.util.Size
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -20,6 +22,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -31,6 +34,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Pause
@@ -61,6 +65,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -69,6 +74,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.palette.graphics.Palette
 import com.musicplayer.app.MusicViewModel
 import com.musicplayer.app.data.Song
 import com.musicplayer.app.data.albumArtUri
@@ -158,6 +164,8 @@ fun SongRow(
             .fillMaxWidth()
             .background(if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f) else Color.Transparent)
             .combinedClickable(
+                onClickLabel = if (selectionMode) (if (selected) "Desmarcar" else "Marcar") else "Tocar",
+                onLongClickLabel = if (onLongClick != null) "Selecionar várias músicas" else null,
                 onClick = onClick,
                 onLongClick = onLongClick?.let { lc -> { haptics.performHapticFeedback(HapticFeedbackType.LongPress); lc() } },
             )
@@ -167,6 +175,15 @@ fun SongRow(
         AlbumArt(song.albumId, Modifier.size(48.dp))
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (isCurrent) {
+                    Icon(
+                        Icons.Rounded.GraphicEq, "Tocando agora",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                }
             Text(
                 song.title,
                 maxLines = 1,
@@ -175,6 +192,7 @@ fun SongRow(
                 color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                 fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Normal,
             )
+            }
             Text(
                 "${song.artist} · ${song.album}",
                 maxLines = 1,
@@ -243,44 +261,79 @@ fun EmptyMessage(text: String) {
 fun MiniPlayer(vm: MusicViewModel, onOpen: () -> Unit) {
     val state = vm.player
     val song = state.song ?: return
-    Surface(tonalElevation = 3.dp, shadowElevation = 8.dp, color = MaterialTheme.colorScheme.surface) {
-        Column(Modifier.navigationBarsPadding()) {
-            LinearProgressIndicator(
-                progress = { if (state.duration > 0) state.position.toFloat() / state.duration else 0f },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 0.dp),
-                trackColor = Color.Transparent,
-                drawStopIndicator = {},
-            )
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onOpen)
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                AlbumArt(song.albumId, Modifier.size(44.dp), corner = 22.dp)
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(song.title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
-                    Text(
-                        song.artist, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+
+    // Cartão flutuante com um toque da cor da capa (como na tela "Tocando agora")
+    val base = MaterialTheme.colorScheme.surfaceContainerHighest
+    val coverColor = rememberCoverColor(song.albumId)
+    val background by animateColorAsState(
+        if (coverColor != null) lerp(base, coverColor, 0.22f) else base,
+        tween(500), label = "miniPlayerBg",
+    )
+
+    Box(Modifier.navigationBarsPadding().padding(horizontal = 10.dp, vertical = 8.dp)) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = background,
+            shadowElevation = 6.dp,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable(onClickLabel = "Abrir o player", onClick = onOpen)
+                        .padding(start = 8.dp, end = 2.dp, top = 8.dp, bottom = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    AlbumArt(song.albumId, Modifier.size(48.dp), corner = 14.dp)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(song.title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            song.artist, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    IconButton(onClick = vm::togglePlay) {
+                        Icon(
+                            if (state.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                            if (state.isPlaying) "Pausar" else "Tocar",
+                            modifier = Modifier.size(30.dp),
+                        )
+                    }
+                    IconButton(onClick = vm::next) { Icon(Icons.Rounded.SkipNext, "Próxima") }
+                    IconButton(onClick = vm::closePlayer) {
+                        Icon(Icons.Rounded.Close, "Fechar player", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
-                IconButton(onClick = vm::togglePlay) {
-                    Icon(
-                        if (state.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                        if (state.isPlaying) "Pausar" else "Tocar",
-                        modifier = Modifier.size(32.dp),
-                    )
-                }
-                IconButton(onClick = vm::next) { Icon(Icons.Rounded.SkipNext, "Próxima") }
-                IconButton(onClick = vm::closePlayer) {
-                    Icon(Icons.Rounded.Close, "Fechar player", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+                // Progresso como uma linha fina na base do cartão
+                LinearProgressIndicator(
+                    progress = { if (state.duration > 0) state.position.toFloat() / state.duration else 0f },
+                    modifier = Modifier.fillMaxWidth().height(3.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                    gapSize = 0.dp,
+                    drawStopIndicator = {},
+                )
             }
         }
     }
+}
+
+/** Cor marcante da capa do álbum (para tingir o fundo), ou null se não houver capa. */
+@Composable
+fun rememberCoverColor(albumId: Long): Color? {
+    val bitmap = rememberAlbumBitmap(albumId)
+    var color by remember(albumId) { mutableStateOf<Color?>(null) }
+    LaunchedEffect(bitmap) {
+        color = bitmap?.let { bmp ->
+            withContext(Dispatchers.Default) {
+                val p = Palette.from(bmp).generate()
+                (p.vibrantSwatch ?: p.mutedSwatch ?: p.dominantSwatch)?.rgb?.let { Color(it) }
+            }
+        }
+    }
+    return color
 }
 
 // ---------- Diálogos ----------
@@ -295,7 +348,7 @@ fun NewPlaylistDialog(onDismiss: () -> Unit, onCreate: (String) -> Unit) {
             OutlinedTextField(name, { name = it }, singleLine = true, placeholder = { Text("Nome da playlist") })
         },
         confirmButton = {
-            TextButton(onClick = { onCreate(name) }, enabled = name.isNotBlank()) { Text("Criar") }
+            TextButton(onClick = { onCreate(name) }, enabled = name.isNotBlank()) { Text("Criar playlist") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
     )
@@ -343,7 +396,7 @@ fun AddToPlaylistDialog(vm: MusicViewModel, songs: List<Song>) {
                 }
             }
         },
-        confirmButton = { TextButton(onClick = close) { Text("Fechar") } },
+        confirmButton = { TextButton(onClick = close) { Text("Cancelar") } },
     )
 }
 

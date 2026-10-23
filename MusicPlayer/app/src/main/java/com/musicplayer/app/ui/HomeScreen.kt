@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -68,8 +69,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.musicplayer.app.Detail
@@ -202,7 +207,14 @@ private fun ThemeButton(vm: MusicViewModel) {
         IconButton(
             onClick = { open = true },
             colors = IconButtonDefaults.iconButtonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        ) { Icon(icon, "Tema") }
+        ) {
+            val current = when (vm.themeMode) {
+                ThemeMode.SYSTEM -> "padrão do sistema"
+                ThemeMode.LIGHT -> "claro"
+                ThemeMode.DARK -> "escuro"
+            }
+            Icon(icon, "Tema: $current. Toque para mudar")
+        }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             listOf(
                 Triple(ThemeMode.SYSTEM, "Padrão do sistema", Icons.Rounded.BrightnessAuto),
@@ -260,7 +272,7 @@ fun SearchField(
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = { focus.clearFocus(); onSearch?.invoke() }),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().semantics { contentDescription = placeholder },
             )
         }
         AnimatedVisibility(query.isNotEmpty(), enter = fadeIn(), exit = fadeOut()) {
@@ -269,8 +281,8 @@ fun SearchField(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
                     .clip(CircleShape)
-                    .clickable { onQueryChange(""); focus.clearFocus() }
-                    .padding(4.dp),
+                    .clickable(onClickLabel = "Limpar busca") { onQueryChange(""); focus.clearFocus() }
+                    .padding(10.dp), // 44 dp de área de toque
             )
         }
     }
@@ -303,7 +315,7 @@ private fun TabChips(selected: Int, onSelect: (Int) -> Unit) {
                 modifier = Modifier
                     .clip(CircleShape)
                     .background(bg)
-                    .clickable { onSelect(i) }
+                    .selectable(selected = isSelected, role = Role.Tab, onClick = { onSelect(i) })
                     .padding(horizontal = 18.dp, vertical = 9.dp),
             )
         }
@@ -315,7 +327,21 @@ private fun TabChips(selected: Int, onSelect: (Int) -> Unit) {
 @Composable
 private fun SongsTab(vm: MusicViewModel) {
     if (vm.songs.isEmpty()) {
-        EmptyMessage("Nenhuma música encontrada.\nCopie arquivos MP3 para a pasta Music do celular.")
+        Column(
+            Modifier.fillMaxSize().padding(32.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text("Nenhuma música no celular", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.size(8.dp))
+            Text(
+                "Copie suas músicas para a pasta Music do celular, ou baixe músicas pela busca online.",
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.size(20.dp))
+            FilledTonalButton(onClick = { vm.onlineOpen = true }) { Text("Procurar músicas online") }
+        }
         return
     }
     SongList(vm, vm.songs, header = {

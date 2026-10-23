@@ -24,6 +24,7 @@ import com.musicplayer.app.data.PlaylistStore
 import com.musicplayer.app.data.Song
 import com.musicplayer.app.data.toMediaItem
 import com.musicplayer.app.online.Downloads
+import com.musicplayer.app.online.FriendlyErrors
 import com.musicplayer.app.online.OnlineResult
 import com.musicplayer.app.online.YtDlp
 import kotlinx.coroutines.CancellationException
@@ -401,8 +402,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                onlineError = e.message?.lines()?.lastOrNull { it.contains("ERROR:") }?.substringAfter("ERROR:")?.trim()
-                    ?: "Não foi possível buscar. Verifique a internet e tente de novo."
+                onlineError = FriendlyErrors.of(e.message).replace("Não foi possível baixar", "Não foi possível buscar")
             } finally {
                 onlineStatus = null
             }

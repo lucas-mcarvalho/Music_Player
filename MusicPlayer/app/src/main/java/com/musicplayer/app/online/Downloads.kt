@@ -106,14 +106,5 @@ object Downloads {
         states[id]?.let { states[id] = change(it) }
     }
 
-    /** Pega a linha "ERROR: ..." do yt-dlp, que é a que explica o problema. */
-    private fun friendlyError(e: Exception): String {
-        val msg = e.message.orEmpty()
-        val line = msg.lines().lastOrNull { it.contains("ERROR:") }?.substringAfter("ERROR:")?.trim()
-        return when {
-            line != null -> line.take(160)
-            msg.contains("Unable to resolve host", true) || msg.contains("network", true) -> "Sem conexão com a internet"
-            else -> msg.lines().firstOrNull { it.isNotBlank() }?.take(160) ?: "Erro desconhecido"
-        }
-    }
+    private fun friendlyError(e: Exception): String = FriendlyErrors.of(e.message)
 }
