@@ -1,4 +1,4 @@
-package com.lucas.musica.ui
+package com.musicplayer.app.ui
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -32,9 +32,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.lucas.musica.Detail
-import com.lucas.musica.DetailKind
-import com.lucas.musica.MusicViewModel
+import com.musicplayer.app.Detail
+import com.musicplayer.app.DetailKind
+import com.musicplayer.app.MusicViewModel
 
 @Composable
 fun DetailScreen(vm: MusicViewModel, detail: Detail) {

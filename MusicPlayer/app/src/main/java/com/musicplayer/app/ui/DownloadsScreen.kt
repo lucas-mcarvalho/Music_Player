@@ -1,4 +1,4 @@
-package com.lucas.musica.ui
+package com.musicplayer.app.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -41,10 +41,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import com.lucas.musica.MusicViewModel
-import com.lucas.musica.online.DownloadState
-import com.lucas.musica.online.DownloadStatus
-import com.lucas.musica.online.Downloads
+import com.musicplayer.app.MusicViewModel
+import com.musicplayer.app.online.DownloadState
+import com.musicplayer.app.online.DownloadStatus
+import com.musicplayer.app.online.Downloads
 
 /** Progresso dos downloads em andamento, a fila e o histórico desta sessão. */
 @Composable

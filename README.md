@@ -1,6 +1,6 @@
 # Música — player de música offline para Android
 
-Aplicativo para tocar as músicas salvas no celular, sem internet, inspirado no player que vem de fábrica nos celulares Xiaomi.
+Aplicativo para tocar as músicas salvas no celular, sem internet, inspirado nos players de música que já vêm instalados nos celulares Android.
 Feito em **Kotlin** com **Jetpack Compose** (interface) e **Media3/ExoPlayer** (reprodução).
 
 > Status: protótipo (versão 0.2). Funciona de ponta a ponta, mas ainda não tem fila de reprodução visível, equalizador, letras nem timer.
@@ -11,7 +11,7 @@ Feito em **Kotlin** com **Jetpack Compose** (interface) e **Media3/ExoPlayer** (
 
 | Arquivo | Para quem |
 |---|---|
-| [**Musica.apk**](https://github.com/lucas-mcarvalho/Music_Player/raw/develop/Musica.apk) | Quase todos os celulares atuais (arm64), incluindo Xiaomi |
+| [**Musica.apk**](https://github.com/lucas-mcarvalho/Music_Player/raw/develop/Musica.apk) | Quase todos os celulares atuais (arm64) |
 | [**Musica-32bits.apk**](https://github.com/lucas-mcarvalho/Music_Player/raw/develop/Musica-32bits.apk) | Só celulares bem antigos (32 bits), se o primeiro não instalar |
 
 Todas as versões, com as notas de cada uma, ficam em **[Releases](https://github.com/lucas-mcarvalho/Music_Player/releases)**. Para instalar, veja [Como instalar no celular](#como-instalar-no-celular).
@@ -41,13 +41,17 @@ Todas as versões, com as notas de cada uma, ficam em **[Releases](https://githu
 
 **Biblioteca**
 - Lê automaticamente todas as músicas do aparelho (ignora áudios com menos de 10 s, como toques e notificações).
-- Abas: **Músicas**, **Artistas**, **Álbuns** (grade com capas), **Pastas** e **Playlists**.
+- Abas: **Músicas**, **Artistas**, **Álbuns** (grade com capas), **Pastas** e **Fila de reprodução**
+- **Adicionar à fila** (fim da fila) no menu ⋮ de cada música e na barra da seleção múltipla; **Tocar a seguir** continua colocando logo depois da atual.
+- Tela **Fila de reprodução** (botão na tela "Tocando agora"): música atual e as próximas na ordem real (respeita o aleatório), com tempo restante. Tocar numa música pula para ela; ✕ tira da fila; **Limpar** esvazia o que vem a seguir.
+
+**Playlists**.
 - Troca de aba tocando nas "pílulas" ou **deslizando o dedo** para os lados.
 - **Barra de pesquisa** sempre visível: busca por título, artista ou álbum enquanto digita.
 - Telas de detalhe para álbum, artista, pasta e playlist, com botões **Tocar** e **Aleatório**.
 
 **Player**
-- **Mini player** fixo na parte de baixo, com barra de progresso.
+- **Mini player** fixo na parte de baixo, com barra de progresso e **✕ para fechar** (para a música, esvazia a fila e não a restaura ao reabrir).
 - Tela **Tocando agora**: capa grande, fundo com a cor extraída da capa, barra de posição, anterior/próxima, aleatório, repetir (todas / uma) e favoritar.
 - Toca **em segundo plano**, com controles na **notificação**, na **tela de bloqueio** e em fones Bluetooth.
 - Pausa sozinho quando o fone é desconectado ou quando chega uma ligação.
@@ -117,7 +121,7 @@ A biblioteca, o player e as playlists funcionam 100% offline. Só a tela **Onlin
 - O caminho do SDK fica em `local.properties` (este arquivo não vai para o git):
 
   ```properties
-  sdk.dir=/home/lucas/Android/Sdk
+  sdk.dir=/home/SEU_USUARIO/Android/Sdk
   ```
 
 Não é preciso instalar o Gradle: o projeto usa o **Gradle Wrapper** (`./gradlew`), que baixa a versão certa sozinho.
@@ -173,7 +177,7 @@ Isso basta para instalar e testar, mas **não serve para publicar na Play Store*
 O release usa **R8** (`isMinifyEnabled = true` e `isShrinkResources = true`) para remover código não usado. O código do app em si ocupa ~2 MB; o resto do APK é o Python e o ffmpeg do yt-dlp (bibliotecas nativas). Por isso o projeto gera **um APK por arquitetura** (`splits.abi`), em vez de um único APK de ~190 MB.
 
 Na raiz do repositório ficam prontos:
-- `Musica.apk`: arm64-v8a, para quase todos os celulares de 2017 em diante (inclusive Xiaomi);
+- `Musica.apk`: arm64-v8a, para quase todos os celulares de 2017 em diante;
 - `Musica-32bits.apk`: armeabi-v7a, para celulares antigos.
 
 O youtubedl-android exige `android:extractNativeLibs="true"` e `jniLibs.useLegacyPackaging = true`, já configurados.
@@ -188,7 +192,7 @@ O youtubedl-android exige `android:extractNativeLibs="true"` e `jniLibs.useLegac
 3. Abra o app e aceite a permissão de acesso às músicas (e às notificações).
 
 **Opção 2: pelo cabo USB com adb**
-1. No celular, ative **Opções do desenvolvedor → Depuração USB**. Nos Xiaomi, ative também **Instalar via USB**.
+1. No celular, ative **Opções do desenvolvedor → Depuração USB**. Em alguns celulares, ative também **Instalar via USB**.
 2. No computador:
 
    ```bash
@@ -222,7 +226,7 @@ projects/                       # raiz do repositório
             │   ├── values-night/themes.xml     # tema da janela (escuro)
             │   ├── drawable/ic_launcher_fg.xml # nota musical do ícone
             │   └── mipmap-anydpi-v26/ic_launcher.xml  # ícone adaptativo
-            └── java/com/lucas/musica/
+            └── java/com/musicplayer/app/
                 ├── MainActivity.kt         # entrada do app, permissões, tema
                 ├── MusicViewModel.kt       # estado central e regras do app
                 ├── data/
@@ -245,6 +249,7 @@ projects/                       # raiz do repositório
                     ├── NowPlayingScreen.kt # tela "Tocando agora"
                     ├── OnlineScreen.kt     # tela "Procurar online"
                     ├── DownloadsScreen.kt  # tela "Downloads" (progresso e fila)
+                    ├── QueueScreen.kt      # tela "Fila de reprodução"
                     ├── Selection.kt        # barras e diálogo do modo de seleção
                     ├── Components.kt       # capa, linha de música, mini player, diálogos
                     ├── Theme.kt            # cores dos temas claro e escuro
@@ -347,20 +352,17 @@ OnlineScreen ─► MusicViewModel.searchOnline() ─► YtDlp.search() ─► Y
 - O progresso vem do callback do yt-dlp (0–100; −1 enquanto prepara, mostrado como "Preparando…"). Ao chegar em 100% ainda falta embutir metadados e capa ("Finalizando…").
 - O log `YtDlp` (logcat) mostra o tempo de cada etapa, útil para achar gargalos.
 
-**Tempo por música** (Ice Flow, 2:23, medido no emulador):
+**Por que é rápido (e por que já foi lento):** o YouTube exige um "desafio JavaScript" dos clientes web. A biblioteca sempre entrega o QuickJS ao yt-dlp, e com ele disponível o yt-dlp escolhe os clientes web e resolve o desafio, o que levava ~11 s no emulador e ~25 s no celular. A primeira tentativa agora usa `--extractor-args "youtube:player_client=visionos;player_skip=js;skip=hls,translated_subs"`: o cliente `visionos` entrega o áudio sem desafio, `player_skip=js` impede que o yt-dlp baixe o JavaScript do player e `skip=…` evita buscas inúteis. Se o vídeo não estiver disponível por esse cliente, o app repete com o padrão. O app também tira do JSON da etapa 1 as legendas automáticas (~90% dos ~550 KB), que a etapa 2 não usa.
 
-| Etapa | Antes | Agora |
+**Tempo por música:**
+
+| Versão | Emulador (app em 2º plano) | Celular (Redmi, Android 16) |
 |---|---|---|
-| Extrair informações (inclui o desafio JavaScript do YouTube, ~11 s) | ~15 s | ~18 s |
-| Procurar a capa | ~10 s | ~0,2 s (em paralelo) |
-| Baixar o áudio (~2,2 MB) | ~1,5 s | ~1 s |
-| Converter para MP3 | ~5 s | 0 |
-| Segunda chamada ao yt-dlp | 0 | ~2,5 s |
-| **Total** | **~35 s** | **~23 s** |
+| MP3 + desafio JavaScript | ~35 s | — |
+| M4A + desafio JavaScript | ~17–23 s | 36 s |
+| M4A sem desafio (atual) | **~14 s** | **12 s** |
 
-O que sobra é quase todo o desafio JavaScript, resolvido pelo QuickJS (o único motor JS disponível no Android). Foi testado o cliente `android_vr` do YouTube, que dispensava o desafio, mas ele não entrega mais áudio.
-
-- Cancelar chama `destroyProcessById` no processo do yt-dlp.
+No emulador, com o app aberto, as medições ficam bem piores porque ele desenha as animações da tela por software (sem GPU); use o celular como referência.
 
 ### Lembrar a última música
 
@@ -421,9 +423,9 @@ No Android 11+ o app usa `MediaStore.createDeleteRequest`, e o **sistema** mostr
 ## Onde os dados ficam salvos
 
 - **Músicas:** não são copiadas; o app só lê os arquivos que já estão no celular.
-- **Playlists, favoritas, tema e última sessão:** `/data/data/com.lucas.musica/shared_prefs/biblioteca.xml` (apagados se o app for desinstalado).
+- **Playlists, favoritas, tema e última sessão:** `/data/data/com.musicplayer.app/shared_prefs/biblioteca.xml` (apagados se o app for desinstalado).
 - **Músicas baixadas:** `Music/Música Online/` no armazenamento do celular (continuam lá mesmo desinstalando o app).
-- **yt-dlp/Python:** `/data/data/com.lucas.musica/no_backup/youtubedl-android/` (extraído na primeira busca).
+- **yt-dlp/Python:** `/data/data/com.musicplayer.app/no_backup/youtubedl-android/` (extraído na primeira busca).
 - As playlists guardam o **ID do MediaStore** de cada música. Se um arquivo for apagado fora do app, ele some da playlist automaticamente.
 
 ---

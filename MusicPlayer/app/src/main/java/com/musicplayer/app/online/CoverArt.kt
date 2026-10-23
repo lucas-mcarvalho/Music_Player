@@ -1,4 +1,4 @@
-package com.lucas.musica.online
+package com.musicplayer.app.online
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory

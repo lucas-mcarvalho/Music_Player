@@ -1,4 +1,4 @@
-package com.lucas.musica.ui
+package com.musicplayer.app.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -72,10 +72,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.lucas.musica.Detail
-import com.lucas.musica.DetailKind
-import com.lucas.musica.MusicViewModel
-import com.lucas.musica.ThemeMode
+import com.musicplayer.app.Detail
+import com.musicplayer.app.DetailKind
+import com.musicplayer.app.MusicViewModel
+import com.musicplayer.app.ThemeMode
 import kotlinx.coroutines.launch
 import java.io.File
 

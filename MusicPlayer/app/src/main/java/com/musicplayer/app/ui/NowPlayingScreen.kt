@@ -1,4 +1,4 @@
-package com.lucas.musica.ui
+package com.musicplayer.app.ui
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
@@ -29,6 +29,7 @@ import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
+import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -53,7 +54,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.Player
 import androidx.palette.graphics.Palette
-import com.lucas.musica.MusicViewModel
+import com.musicplayer.app.MusicViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -100,6 +101,9 @@ fun NowPlayingScreen(vm: MusicViewModel, onClose: () -> Unit) {
                     modifier = Modifier.weight(1f), textAlign = TextAlign.Center,
                     style = MaterialTheme.typography.titleSmall,
                 )
+                IconButton(onClick = { vm.queueOpen = true }) {
+                    Icon(Icons.AutoMirrored.Rounded.QueueMusic, "Fila de reprodução", tint = Color.White)
+                }
                 IconButton(onClick = { vm.songsForPlaylistDialog = listOf(song) }) {
                     Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, "Adicionar à playlist", tint = Color.White)
                 }

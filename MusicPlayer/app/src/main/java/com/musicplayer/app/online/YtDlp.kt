@@ -1,4 +1,4 @@
-package com.lucas.musica.online
+package com.musicplayer.app.online
 
 import android.content.Context
 import android.os.SystemClock
@@ -36,6 +36,12 @@ object YtDlp {
 
     // M4A (AAC) não precisa de conversão; se não houver, pega o melhor áudio disponível
     private const val AUDIO_FORMAT = "bestaudio[ext=m4a]/bestaudio"
+
+    // Clientes do YouTube que entregam o áudio sem o desafio JavaScript, e player_skip=js para o yt-dlp
+    // nem baixar o JavaScript do player. Sem isso, como a biblioteca sempre liga o QuickJS, o yt-dlp
+    // resolve o desafio "por garantia" e gasta ~11 s (emulador) a ~25 s (celular) por música.
+    // skip=hls,translated_subs: não busca a lista HLS nem as legendas traduzidas, que não são usadas.
+    private const val FAST_EXTRACTOR_ARGS = "youtube:player_client=visionos;player_skip=js;skip=hls,translated_subs"
     private val AUDIO_EXTENSIONS = setOf("m4a", "mp3", "opus", "ogg", "webm", "aac", "flac")
 
     private val initLock = Mutex()
@@ -147,22 +153,39 @@ object YtDlp {
             val start = SystemClock.elapsedRealtime()
             val cover = async(Dispatchers.IO) { CoverArt.fetch(item.id, File(dir, "capa.jpg")) }
 
-            // 1) Informações do vídeo, já com o formato de áudio escolhido (a parte lenta:
-            //    inclui resolver os desafios JavaScript do YouTube)
+            // 1) Informações do vídeo, já com o formato de áudio escolhido.
+            // Primeiro com clientes do YouTube que dispensam o desafio JavaScript (~2 s); só se o vídeo
+            // não estiver disponível por eles, repete com o padrão (que resolve o desafio no QuickJS, ~20 s).
             val infoJson = withContext(Dispatchers.IO) {
-                val request = YoutubeDLRequest(item.url)
-                    .addOption("--no-playlist")
-                    .addOption("-f", AUDIO_FORMAT)
-                    .addOption("--dump-single-json")
-                    .addOption("--no-warnings")
-                    .withCache(context)
-                YoutubeDL.getInstance().execute(request, item.id).out
+                fun extract(fastClients: Boolean): String {
+                    val request = YoutubeDLRequest(item.url)
+                        .addOption("--no-playlist")
+                        .addOption("-f", AUDIO_FORMAT)
+                        .addOption("--dump-single-json")
+                        .addOption("--no-warnings")
+                        .withCache(context)
+                    if (fastClients) request.addOption("--extractor-args", FAST_EXTRACTOR_ARGS)
+                    return YoutubeDL.getInstance().execute(request, item.id).out
+                }
+                try {
+                    extract(fastClients = true)
+                } catch (e: YoutubeDL.CanceledException) {
+                    throw e
+                } catch (e: Exception) {
+                    if (isCanceled()) throw YoutubeDL.CanceledException()
+                    Log.d(TAG, "Clientes rápidos falharam para ${item.id} (${e.message?.lines()?.lastOrNull { it.isNotBlank() }}); usando o padrão")
+                    extract(fastClients = false)
+                }
             }
             Log.d(TAG, "Informações de ${item.id} em ${SystemClock.elapsedRealtime() - start} ms")
             if (isCanceled()) throw YoutubeDL.CanceledException()
 
-            // Troca as capas do YouTube pela capa quadrada que o app baixou
+            // Troca as capas do YouTube pela capa quadrada que o app baixou, e tira o que a etapa 2 não usa:
+            // as legendas automáticas sozinhas são ~90% do JSON (~500 KB, 157 idiomas)
             val info = JSONObject(infoJson)
+            info.remove("automatic_captions")
+            info.remove("subtitles")
+            info.remove("heatmap")
             val coverFile = cover.await()
             info.remove("thumbnail")
             if (coverFile != null) {

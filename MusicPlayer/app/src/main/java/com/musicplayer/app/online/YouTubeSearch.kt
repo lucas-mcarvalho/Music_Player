@@ -1,4 +1,4 @@
-package com.lucas.musica.online
+package com.musicplayer.app.online
 
 import org.json.JSONArray
 import org.json.JSONObject

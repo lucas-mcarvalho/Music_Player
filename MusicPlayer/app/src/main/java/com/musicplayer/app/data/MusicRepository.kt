@@ -1,4 +1,4 @@
-package com.lucas.musica.data
+package com.musicplayer.app.data
 
 import android.content.ContentUris
 import android.content.Context
