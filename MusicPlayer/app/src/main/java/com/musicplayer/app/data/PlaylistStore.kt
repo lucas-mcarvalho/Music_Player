@@ -1,4 +1,4 @@
-package com.lucas.musica.data
+package com.musicplayer.app.data
 
 import android.content.Context
 import org.json.JSONArray
@@ -41,6 +41,13 @@ class PlaylistStore(context: Context) {
             .putLong("sessao_posicao", s.positionMs)
             .putBoolean("sessao_aleatorio", s.shuffle)
             .putInt("sessao_repetir", s.repeatMode)
+            .apply()
+    }
+
+    fun clearSession() {
+        prefs.edit()
+            .remove("sessao_fila").remove("sessao_indice").remove("sessao_posicao")
+            .remove("sessao_aleatorio").remove("sessao_repetir")
             .apply()
     }
 

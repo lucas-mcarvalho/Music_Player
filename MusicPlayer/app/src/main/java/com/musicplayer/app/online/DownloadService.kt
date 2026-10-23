@@ -1,4 +1,4 @@
-package com.lucas.musica.online
+package com.musicplayer.app.online
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -13,7 +13,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
-import com.lucas.musica.MainActivity
+import com.musicplayer.app.MainActivity
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel

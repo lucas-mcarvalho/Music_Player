@@ -1,4 +1,4 @@
-package com.lucas.musica.ui
+package com.musicplayer.app.ui
 
 import android.content.ContentUris
 import android.content.Context
@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Pause
@@ -68,9 +69,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.lucas.musica.MusicViewModel
-import com.lucas.musica.data.Song
-import com.lucas.musica.data.albumArtUri
+import com.musicplayer.app.MusicViewModel
+import com.musicplayer.app.data.Song
+import com.musicplayer.app.data.albumArtUri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -143,6 +144,7 @@ fun SongRow(
     isCurrent: Boolean,
     onClick: () -> Unit,
     onPlayNext: () -> Unit,
+    onAddToQueue: () -> Unit,
     onAddToPlaylist: () -> Unit,
     onRemove: (() -> Unit)? = null,
     selectionMode: Boolean = false,
@@ -189,6 +191,7 @@ fun SongRow(
             }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(text = { Text("Tocar a seguir") }, onClick = { menu = false; onPlayNext() })
+                DropdownMenuItem(text = { Text("Adicionar à fila") }, onClick = { menu = false; onAddToQueue() })
                 DropdownMenuItem(text = { Text("Adicionar à playlist") }, onClick = { menu = false; onAddToPlaylist() })
                 if (onRemove != null) {
                     DropdownMenuItem(text = { Text("Remover da playlist") }, onClick = { menu = false; onRemove() })
@@ -216,6 +219,7 @@ fun SongList(
                 isCurrent = vm.player.song?.id == song.id,
                 onClick = { if (selectionMode) vm.toggleSelect(song) else vm.play(songs, i) },
                 onPlayNext = { vm.playNext(song) },
+                onAddToQueue = { vm.addToQueue(listOf(song)) },
                 onAddToPlaylist = { vm.songsForPlaylistDialog = listOf(song) },
                 onRemove = playlistId?.let { id -> { vm.removeFromPlaylist(id, song) } },
                 selectionMode = selectionMode,
@@ -271,6 +275,9 @@ fun MiniPlayer(vm: MusicViewModel, onOpen: () -> Unit) {
                     )
                 }
                 IconButton(onClick = vm::next) { Icon(Icons.Rounded.SkipNext, "Próxima") }
+                IconButton(onClick = vm::closePlayer) {
+                    Icon(Icons.Rounded.Close, "Fechar player", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
     }

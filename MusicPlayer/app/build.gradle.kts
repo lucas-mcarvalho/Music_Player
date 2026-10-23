@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.lucas.musica"
+    namespace = "com.musicplayer.app"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.lucas.musica"
+        applicationId = "com.musicplayer.app"
         minSdk = 26
         targetSdk = 35
         versionCode = 2

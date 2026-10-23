@@ -1,4 +1,4 @@
-package com.lucas.musica
+package com.musicplayer.app
 
 import android.app.Application
 import android.content.ComponentName
@@ -13,21 +13,22 @@ import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
-import com.lucas.musica.data.MusicRepository
-import com.lucas.musica.data.PlaybackSession
-import com.lucas.musica.data.Playlist
-import com.lucas.musica.data.PlaylistStore
-import com.lucas.musica.data.Song
-import com.lucas.musica.data.toMediaItem
-import com.lucas.musica.online.Downloads
-import com.lucas.musica.online.OnlineResult
-import com.lucas.musica.online.YtDlp
+import com.musicplayer.app.data.MusicRepository
+import com.musicplayer.app.data.PlaybackSession
+import com.musicplayer.app.data.Playlist
+import com.musicplayer.app.data.PlaylistStore
+import com.musicplayer.app.data.Song
+import com.musicplayer.app.data.toMediaItem
+import com.musicplayer.app.online.Downloads
+import com.musicplayer.app.online.OnlineResult
+import com.musicplayer.app.online.YtDlp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
-import com.lucas.musica.playback.PlaybackService
+import com.musicplayer.app.playback.PlaybackService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -42,6 +43,9 @@ enum class DetailKind { ARTIST, ALBUM, FOLDER, PLAYLIST, FAVORITES }
 
 /** Uma tela de detalhe (álbum, artista, pasta ou playlist) empilhada sobre a tela inicial. */
 data class Detail(val kind: DetailKind, val key: String, val title: String)
+
+/** Uma música da fila; [index] é a posição dela no player (pode diferir da ordem com o aleatório ligado). */
+data class QueueItem(val index: Int, val song: Song)
 
 data class PlayerState(
     val song: Song? = null,
@@ -79,6 +83,13 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
 
     val backStack = mutableStateListOf<Detail>()
 
+    /** Fila na ordem em que vai tocar (respeita o aleatório) e posição da música atual nela. */
+    var queue by mutableStateOf<List<QueueItem>>(emptyList())
+        private set
+    var currentQueueIndex by mutableStateOf(C.INDEX_UNSET)
+        private set
+    var queueOpen by mutableStateOf(false)
+
     // ---- Busca online (yt-dlp) ----
     var onlineOpen by mutableStateOf(false)
     var downloadsOpen by mutableStateOf(false)
@@ -108,6 +119,11 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
             sync()
+            if (events.containsAny(
+                    Player.EVENT_TIMELINE_CHANGED, Player.EVENT_MEDIA_ITEM_TRANSITION,
+                    Player.EVENT_SHUFFLE_MODE_ENABLED_CHANGED,
+                )
+            ) syncQueue()
             // Só salva depois de restaurar, para não sobrescrever a sessão anterior com uma fila vazia
             if (sessionRestored && events.containsAny(
                     Player.EVENT_TIMELINE_CHANGED, Player.EVENT_MEDIA_ITEM_TRANSITION,
@@ -152,6 +168,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
             loaded = true
             sync()
             restoreSession()
+            syncQueue()
         }
     }
 
@@ -192,6 +209,25 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
         c.repeatMode = session.repeatMode
         c.setMediaItems(queue.map { it.toMediaItem() }, index.coerceAtLeast(0), if (index >= 0) session.positionMs else 0L)
         c.prepare()
+    }
+
+    /** Monta a fila na ordem de reprodução, a partir do player. */
+    private fun syncQueue() {
+        val c = controller ?: return
+        val timeline = c.currentTimeline
+        currentQueueIndex = c.currentMediaItemIndex
+        if (timeline.isEmpty) {
+            queue = emptyList()
+            return
+        }
+        val shuffle = c.shuffleModeEnabled
+        val items = mutableListOf<QueueItem>()
+        var i = timeline.getFirstWindowIndex(shuffle)
+        while (i != C.INDEX_UNSET && items.size < timeline.windowCount) {
+            c.getMediaItemAt(i).mediaId.toLongOrNull()?.let { songsById[it] }?.let { items += QueueItem(i, it) }
+            i = timeline.getNextWindowIndex(i, Player.REPEAT_MODE_OFF, shuffle)
+        }
+        queue = items
     }
 
     private fun sync() {
@@ -247,6 +283,51 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
                 else -> Player.REPEAT_MODE_OFF
             }
         }
+    }
+
+    // ---- Fila ----
+
+    /** Coloca músicas no fim da fila. Se nada estiver tocando, começa a tocar. */
+    fun addToQueue(songs: List<Song>) {
+        val c = controller ?: return
+        if (songs.isEmpty()) return
+        if (c.mediaItemCount == 0) play(songs) else c.addMediaItems(songs.map { it.toMediaItem() })
+        toast(if (songs.size == 1) "Adicionada à fila" else "${songs.size} músicas adicionadas à fila")
+    }
+
+    fun addSelectedToQueue(visible: List<Song>) {
+        addToQueue(selectedIn(visible))
+        clearSelection()
+    }
+
+    /** Pula direto para uma música da fila. */
+    fun playQueueItem(index: Int) {
+        val c = controller ?: return
+        c.seekToDefaultPosition(index)
+        c.play()
+    }
+
+    fun removeFromQueue(index: Int) {
+        val c = controller ?: return
+        if (c.mediaItemCount <= 1) closePlayer() else c.removeMediaItem(index)
+    }
+
+    /** Tira da fila tudo menos a música atual. */
+    fun clearUpcoming() {
+        val c = controller ?: return
+        val current = c.currentMediaItemIndex
+        if (current == C.INDEX_UNSET) return
+        if (current + 1 < c.mediaItemCount) c.removeMediaItems(current + 1, c.mediaItemCount)
+        if (current > 0) c.removeMediaItems(0, current)
+    }
+
+    /** O "✕" do mini player: para a música, esvazia a fila e esquece a sessão salva. */
+    fun closePlayer() {
+        val c = controller ?: return
+        c.stop()
+        c.clearMediaItems()
+        store.clearSession()
+        queueOpen = false
     }
 
     fun playNext(song: Song) {

@@ -1,4 +1,4 @@
-package com.lucas.musica
+package com.musicplayer.app
 
 import android.Manifest
 import android.content.Intent
@@ -22,9 +22,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.lucas.musica.ui.MusicApp
-import com.lucas.musica.ui.MusicTheme
-import com.lucas.musica.ui.PermissionScreen
+import com.musicplayer.app.ui.MusicApp
+import com.musicplayer.app.ui.MusicTheme
+import com.musicplayer.app.ui.PermissionScreen
 
 class MainActivity : ComponentActivity() {
     /** Pedido para abrir a tela de downloads (ao tocar na notificação de download). */

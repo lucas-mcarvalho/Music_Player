@@ -1,4 +1,4 @@
-package com.lucas.musica.ui
+package com.musicplayer.app.ui
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
+import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.PlaylistRemove
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Delete
@@ -35,10 +36,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.lucas.musica.Detail
-import com.lucas.musica.DetailKind
-import com.lucas.musica.MusicViewModel
-import com.lucas.musica.data.Song
+import com.musicplayer.app.Detail
+import com.musicplayer.app.DetailKind
+import com.musicplayer.app.MusicViewModel
+import com.musicplayer.app.data.Song
 
 /** Barra de cima no modo de seleção: fechar, contador e selecionar tudo. */
 @Composable
@@ -74,6 +75,7 @@ fun SelectionActions(vm: MusicViewModel, visible: List<Song>, detail: Detail?, o
         ) {
             ActionItem(Icons.Rounded.PlayArrow, "Tocar") { vm.playSelected(visible) }
             ActionItem(Icons.AutoMirrored.Rounded.PlaylistPlay, "A seguir") { vm.playSelectedNext(visible) }
+            ActionItem(Icons.AutoMirrored.Rounded.QueueMusic, "Fila") { vm.addSelectedToQueue(visible) }
             ActionItem(Icons.AutoMirrored.Rounded.PlaylistAdd, "Playlist") { vm.addSelectedToPlaylist(visible) }
             if (canRemove) {
                 ActionItem(Icons.Rounded.PlaylistRemove, "Remover") { vm.removeSelectedFrom(detail!!) }
@@ -96,7 +98,7 @@ private fun ActionItem(
         Modifier
             .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .padding(horizontal = 8.dp, vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Icon(icon, null, tint = tint)

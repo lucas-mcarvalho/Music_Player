@@ -1,4 +1,4 @@
-package com.lucas.musica.online
+package com.musicplayer.app.online
 
 import android.content.Context
 import androidx.compose.runtime.mutableStateMapOf

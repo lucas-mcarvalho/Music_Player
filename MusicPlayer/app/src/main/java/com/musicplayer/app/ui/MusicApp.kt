@@ -1,4 +1,4 @@
-package com.lucas.musica.ui
+package com.musicplayer.app.ui
 
 import android.app.Activity
 import androidx.activity.compose.BackHandler
@@ -20,8 +20,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import com.lucas.musica.MusicViewModel
-import com.lucas.musica.data.Song
+import com.musicplayer.app.MusicViewModel
+import com.musicplayer.app.data.Song
 
 @Composable
 fun MusicApp(vm: MusicViewModel) {
@@ -40,9 +40,10 @@ fun MusicApp(vm: MusicViewModel) {
         else confirmDelete = songs
     }
 
-    BackHandler(enabled = selecting || showPlayer || vm.downloadsOpen || vm.onlineOpen || detail != null || vm.query.isNotEmpty()) {
+    BackHandler(enabled = selecting || vm.queueOpen || showPlayer || vm.downloadsOpen || vm.onlineOpen || detail != null || vm.query.isNotEmpty()) {
         when {
             selecting -> vm.clearSelection()
+            vm.queueOpen -> vm.queueOpen = false
             showPlayer -> showPlayer = false
             vm.downloadsOpen -> vm.downloadsOpen = false
             vm.onlineOpen -> vm.onlineOpen = false
@@ -74,6 +75,15 @@ fun MusicApp(vm: MusicViewModel) {
             exit = slideOutVertically { it },
         ) {
             NowPlayingScreen(vm, onClose = { showPlayer = false })
+        }
+
+        // A fila abre por cima de tudo (normalmente a partir da tela "Tocando agora")
+        AnimatedVisibility(
+            visible = vm.queueOpen,
+            enter = slideInVertically { it },
+            exit = slideOutVertically { it },
+        ) {
+            QueueScreen(vm)
         }
     }
 

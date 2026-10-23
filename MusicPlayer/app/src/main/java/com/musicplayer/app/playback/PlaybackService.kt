@@ -1,4 +1,4 @@
-package com.lucas.musica.playback
+package com.musicplayer.app.playback
 
 import android.app.PendingIntent
 import android.content.Intent
@@ -7,7 +7,7 @@ import androidx.media3.common.C
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
-import com.lucas.musica.MainActivity
+import com.musicplayer.app.MainActivity
 
 /**
  * Serviço que mantém a música tocando em segundo plano.
