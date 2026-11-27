@@ -25,7 +25,9 @@ import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.TravelExplore
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.CircularProgressIndicator
@@ -93,13 +95,14 @@ fun OnlineScreen(vm: MusicViewModel) {
                     Modifier.size(88.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(Icons.Rounded.TravelExplore, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(44.dp))
+                    Icon(Icons.Rounded.Search, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(44.dp))
                 }
                 Spacer(Modifier.height(20.dp))
                 Text("Procurar músicas online", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Pesquise no YouTube e baixe o áudio. As músicas baixadas aparecem na biblioteca, " +
+                    "Pesquise no YouTube, toque para ouvir aqui no app ou baixe o áudio. " +
+                        "As músicas baixadas aparecem na biblioteca, " +
                         "na pasta \"Música Online\".",
                     textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -119,6 +122,9 @@ fun OnlineScreen(vm: MusicViewModel) {
                     OnlineResultRow(
                         item = item,
                         state = Downloads.states[item.id],
+                        loading = vm.onlineLoadingId == item.id,
+                        playing = vm.player.song?.onlineId == item.id && vm.player.isPlaying,
+                        onPlay = { vm.playOnline(item) },
                         onDownload = { vm.downloadOnline(item) },
                         onCancel = { vm.cancelDownload(item.id) },
                     )
@@ -187,12 +193,19 @@ private fun OnlineResultRow(
     state: DownloadState?,
     onDownload: () -> Unit,
     onCancel: () -> Unit,
+    loading: Boolean,
+    playing: Boolean,
+    onPlay: () -> Unit,
 ) {
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.width(120.dp).height(68.dp).clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
+        Box(
+            Modifier.width(120.dp).height(68.dp).clip(RoundedCornerShape(10.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .clickable(onClickLabel = if (playing) "Pausar" else "Tocar no app", onClick = onPlay),
+        ) {
             AsyncImage(
                 model = item.thumbnail,
                 contentDescription = null,
@@ -237,6 +250,13 @@ private fun OnlineResultRow(
                     else -> MaterialTheme.colorScheme.onSurfaceVariant
                 },
             )
+        }
+        IconButton(onClick = onPlay) {
+            when {
+                loading -> CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+                playing -> Icon(Icons.Rounded.Pause, "Pausar", tint = MaterialTheme.colorScheme.primary)
+                else -> Icon(Icons.Rounded.PlayArrow, "Tocar no app", tint = MaterialTheme.colorScheme.primary)
+            }
         }
         DownloadButton(state, onDownload, onCancel)
     }

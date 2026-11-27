@@ -52,7 +52,7 @@ class MainActivity : ComponentActivity() {
                 enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
                 onDispose {}
             }
-            MusicTheme(dark) {
+            MusicTheme(dark, vm.accentColor) {
                 val context = LocalContext.current
                 val audioPermission =
                     if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO

@@ -3,6 +3,7 @@ package com.musicplayer.app
 import android.app.Application
 import android.content.ComponentName
 import android.content.IntentSender
+import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import android.widget.Toast
@@ -14,10 +15,14 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
+import com.musicplayer.app.ui.AccentColor
 import com.musicplayer.app.data.MusicRepository
+import com.musicplayer.app.data.ONLINE_MEDIA_PREFIX
 import com.musicplayer.app.data.PlaybackSession
 import com.musicplayer.app.data.Playlist
 import com.musicplayer.app.data.PlaylistStore
@@ -73,6 +78,12 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
 
     var themeMode by mutableStateOf(
         store.loadTheme()?.let { saved -> ThemeMode.entries.find { it.name == saved } } ?: ThemeMode.SYSTEM
+    )
+        private set
+
+    /** Cor de destaque escolhida pelo usuário. */
+    var accentColor by mutableStateOf(
+        store.loadAccent()?.let { saved -> AccentColor.entries.find { it.name == saved } } ?: AccentColor.GREEN
     )
         private set
 
@@ -178,6 +189,8 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     private fun saveSession() {
         val c = controller ?: return
         if (c.mediaItemCount == 0) return
+        // Música da internet não é lembrada (o endereço expira): mantém a última sessão da biblioteca
+        if (c.currentMediaItem?.mediaId?.startsWith(ONLINE_MEDIA_PREFIX) == true) return
         store.saveSession(
             PlaybackSession(
                 queue = (0 until c.mediaItemCount).mapNotNull { c.getMediaItemAt(it).mediaId.toLongOrNull() },
@@ -225,15 +238,37 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
         val items = mutableListOf<QueueItem>()
         var i = timeline.getFirstWindowIndex(shuffle)
         while (i != C.INDEX_UNSET && items.size < timeline.windowCount) {
-            c.getMediaItemAt(i).mediaId.toLongOrNull()?.let { songsById[it] }?.let { items += QueueItem(i, it) }
+            songFor(c.getMediaItemAt(i))?.let { items += QueueItem(i, it) }
             i = timeline.getNextWindowIndex(i, Player.REPEAT_MODE_OFF, shuffle)
         }
         queue = items
     }
 
+    /** A música de um item do player: da biblioteca, ou montada a partir dos metadados se veio da internet. */
+    private fun songFor(item: MediaItem): Song? {
+        val id = item.mediaId
+        if (!id.startsWith(ONLINE_MEDIA_PREFIX)) return id.toLongOrNull()?.let { songsById[it] }
+        val videoId = id.removePrefix(ONLINE_MEDIA_PREFIX)
+        val meta = item.mediaMetadata
+        // ID negativo para nunca colidir com os IDs do MediaStore
+        val fakeId = -1L - (videoId.hashCode().toLong() and 0x7fffffffL)
+        return Song(
+            id = fakeId,
+            title = meta.title?.toString() ?: "",
+            artist = meta.artist?.toString() ?: "",
+            album = "",
+            albumId = fakeId,
+            duration = 0,
+            uri = item.localConfiguration?.uri ?: Uri.EMPTY,
+            folder = "",
+            onlineId = videoId,
+            artUrl = meta.artworkUri?.toString(),
+        )
+    }
+
     private fun sync() {
         val c = controller ?: return
-        val song = c.currentMediaItem?.mediaId?.toLongOrNull()?.let { songsById[it] }
+        val song = c.currentMediaItem?.let(::songFor)
         player = PlayerState(
             song = song,
             isPlaying = c.isPlaying,
@@ -340,6 +375,7 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     // ---- Biblioteca ----
 
     fun toggleFavorite(song: Song) {
+        if (song.isOnline) return
         favorites = if (song.id in favorites) favorites - song.id else favorites + song.id
         store.saveFavorites(favorites)
     }
@@ -387,6 +423,11 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
         store.saveTheme(mode.name)
     }
 
+    fun updateAccentColor(color: AccentColor) {
+        accentColor = color
+        store.saveAccent(color.name)
+    }
+
     // ---- Online ----
 
     fun searchOnline() {
@@ -428,6 +469,67 @@ class MusicViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun clearFinishedDownloads() = Downloads.clearFinished()
+
+    /** ID do vídeo cujo áudio está sendo carregado para tocar (null = nenhum). */
+    var onlineLoadingId by mutableStateOf<String?>(null)
+        private set
+    private var streamJob: Job? = null
+    private var streamProcess: String? = null
+
+    /** Toca um resultado da busca direto da internet, no player do app, sem baixar. */
+    fun playOnline(item: OnlineResult) {
+        val c = controller ?: return
+        // Já é a música atual: só pausa/retoma
+        if (c.currentMediaItem?.mediaId == ONLINE_MEDIA_PREFIX + item.id) {
+            togglePlay()
+            return
+        }
+        // Tocou de novo enquanto carregava: cancela
+        if (onlineLoadingId == item.id) {
+            cancelStream()
+            return
+        }
+        cancelStream()
+        val processId = "stream-${UUID.randomUUID()}"
+        streamProcess = processId
+        onlineLoadingId = item.id
+        streamJob = viewModelScope.launch {
+            try {
+                val url = YtDlp.streamUrl(getApplication(), item, processId)
+                val mediaItem = MediaItem.Builder()
+                    .setMediaId(ONLINE_MEDIA_PREFIX + item.id)
+                    .setUri(url)
+                    .setMediaMetadata(
+                        MediaMetadata.Builder()
+                            .setTitle(item.title)
+                            .setArtist(item.channel)
+                            .setArtworkUri(Uri.parse(item.thumbnail))
+                            .build()
+                    )
+                    .build()
+                c.setMediaItems(listOf(mediaItem))
+                c.prepare()
+                c.play()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (streamProcess == processId) toast("Não foi possível carregar a música. Tente novamente.")
+            } finally {
+                if (streamProcess == processId) {
+                    streamProcess = null
+                    onlineLoadingId = null
+                }
+            }
+        }
+    }
+
+    private fun cancelStream() {
+        streamProcess?.let { runCatching { YtDlp.cancel(it) } }
+        streamProcess = null
+        streamJob?.cancel()
+        streamJob = null
+        onlineLoadingId = null
+    }
 
     fun downloadOnline(item: OnlineResult) = Downloads.enqueue(getApplication(), item)
     fun cancelDownload(id: String) = Downloads.cancel(id)

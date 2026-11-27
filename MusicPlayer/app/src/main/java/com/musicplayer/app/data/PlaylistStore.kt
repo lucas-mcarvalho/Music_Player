@@ -73,6 +73,12 @@ class PlaylistStore(context: Context) {
         prefs.edit().putString("theme", name).apply()
     }
 
+    fun loadAccent(): String? = prefs.getString("accent", null)
+
+    fun saveAccent(name: String) {
+        prefs.edit().putString("accent", name).apply()
+    }
+
     fun loadFavorites(): Set<Long> =
         prefs.getStringSet("favorites", emptySet())!!.mapNotNull { it.toLongOrNull() }.toSet()
 

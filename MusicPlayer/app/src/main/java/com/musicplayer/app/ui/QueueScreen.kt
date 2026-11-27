@@ -166,7 +166,7 @@ private fun QueueRow(
             )
             Spacer(Modifier.width(6.dp))
         }
-        AlbumArt(item.song.albumId, Modifier.size(48.dp))
+        SongArt(item.song, Modifier.size(48.dp))
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Text(

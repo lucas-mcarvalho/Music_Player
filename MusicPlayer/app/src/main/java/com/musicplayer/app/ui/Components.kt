@@ -8,6 +8,8 @@ import android.os.Build
 import android.provider.MediaStore
 import android.util.LruCache
 import android.util.Size
+import coil.compose.AsyncImage
+import coil.compose.rememberAsyncImagePainter
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -136,6 +138,26 @@ fun AlbumArt(albumId: Long, modifier: Modifier = Modifier, corner: Dp = 8.dp) {
     }
 }
 
+/** Capa de uma música: a do álbum, ou a miniatura do vídeo se ela estiver tocando da internet. */
+@Composable
+fun SongArt(song: Song, modifier: Modifier = Modifier, corner: Dp = 8.dp) {
+    val videoId = song.onlineId
+    if (videoId == null) {
+        AlbumArt(song.albumId, modifier, corner)
+        return
+    }
+    Box(modifier.clip(RoundedCornerShape(corner)).background(MaterialTheme.colorScheme.surfaceVariant)) {
+        // Tenta a miniatura grande; nem todo vídeo tem, então cai para a média
+        AsyncImage(
+            model = "https://i.ytimg.com/vi/$videoId/maxresdefault.jpg",
+            error = rememberAsyncImagePainter(song.artUrl),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
 fun formatTime(ms: Long): String {
     val total = ms / 1000
     return "%d:%02d".format(total / 60, total % 60)
@@ -258,7 +280,7 @@ fun EmptyMessage(text: String) {
 // ---------- Mini player ----------
 
 @Composable
-fun MiniPlayer(vm: MusicViewModel, onOpen: () -> Unit) {
+fun MiniPlayer(vm: MusicViewModel, onOpen: () -> Unit, bottomNavigation: Boolean = false) {
     val state = vm.player
     val song = state.song ?: return
 
@@ -270,7 +292,7 @@ fun MiniPlayer(vm: MusicViewModel, onOpen: () -> Unit) {
         tween(500), label = "miniPlayerBg",
     )
 
-    Box(Modifier.navigationBarsPadding().padding(horizontal = 10.dp, vertical = 8.dp)) {
+    Box((if (bottomNavigation) Modifier else Modifier.navigationBarsPadding()).padding(horizontal = 10.dp, vertical = 4.dp)) {
         Surface(
             shape = RoundedCornerShape(20.dp),
             color = background,
@@ -285,7 +307,7 @@ fun MiniPlayer(vm: MusicViewModel, onOpen: () -> Unit) {
                         .padding(start = 8.dp, end = 2.dp, top = 8.dp, bottom = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    AlbumArt(song.albumId, Modifier.size(48.dp), corner = 14.dp)
+                    SongArt(song, Modifier.size(48.dp), corner = 14.dp)
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         Text(song.title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold)

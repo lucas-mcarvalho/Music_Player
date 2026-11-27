@@ -12,6 +12,21 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.LibraryMusic
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.Text
+import androidx.compose.ui.unit.dp
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -26,6 +41,7 @@ import com.musicplayer.app.data.Song
 @Composable
 fun MusicApp(vm: MusicViewModel) {
     var showPlayer by rememberSaveable { mutableStateOf(false) }
+    var destination by rememberSaveable { mutableStateOf(2) }
     var confirmDelete by remember { mutableStateOf<List<Song>?>(null) }
     val detail = vm.backStack.lastOrNull()
     val selecting = vm.selection.isNotEmpty()
@@ -46,7 +62,7 @@ fun MusicApp(vm: MusicViewModel) {
             vm.queueOpen -> vm.queueOpen = false
             showPlayer -> showPlayer = false
             vm.downloadsOpen -> vm.downloadsOpen = false
-            vm.onlineOpen -> vm.onlineOpen = false
+            vm.onlineOpen -> { vm.onlineOpen = false; if (destination == 1) destination = 2 }
             detail != null -> vm.back()
             else -> vm.query = ""
         }
@@ -58,6 +74,7 @@ fun MusicApp(vm: MusicViewModel) {
                 when {
                     vm.downloadsOpen -> DownloadsScreen(vm)
                     vm.onlineOpen -> OnlineScreen(vm)
+                    detail == null && destination == 0 -> DiscoverScreen(vm, onLibrary = { destination = 2 })
                     detail == null -> HomeScreen(vm)
                     else -> DetailScreen(vm, detail)
                 }
@@ -65,7 +82,26 @@ fun MusicApp(vm: MusicViewModel) {
             if (selecting) {
                 SelectionActions(vm, if (detail == null) vm.songs else vm.songsFor(detail), detail, onDelete = startDelete)
             } else {
-                MiniPlayer(vm, onOpen = { showPlayer = true })
+                MiniPlayer(vm, onOpen = { showPlayer = true }, bottomNavigation = true)
+            }
+            if (!selecting) {
+                Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 12.dp, vertical = 2.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    listOf(Triple("Início", Icons.Rounded.Home, 0), Triple("Buscar", Icons.Rounded.Search, 1), Triple("Biblioteca", Icons.Rounded.LibraryMusic, 2)).forEach { (label, icon, index) ->
+                        NavigationBarItem(
+                            selected = if (index == 1) vm.onlineOpen else destination == index && !vm.onlineOpen && !vm.downloadsOpen,
+                            onClick = {
+                                vm.onlineOpen = index == 1
+                                vm.downloadsOpen = false
+                                while (vm.backStack.isNotEmpty()) vm.back()
+                                vm.query = ""
+                                destination = index
+                            },
+                            icon = { Icon(icon, label, Modifier.size(22.dp)) },
+                            label = { Text(label, style = MaterialTheme.typography.labelSmall) },
+                            colors = NavigationBarItemDefaults.colors(indicatorColor = androidx.compose.ui.graphics.Color.Transparent),
+                        )
+                    }
+                }
             }
         }
 

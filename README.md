@@ -7,7 +7,7 @@ Feito em **Kotlin** com **Jetpack Compose** (interface) e **Media3/ExoPlayer** (
 
 ## Download
 
-[![Baixar a última versão](https://img.shields.io/github/v/release/lucas-mcarvalho/Music_Player?label=Baixar&style=for-the-badge&color=FF5A1F)](https://github.com/lucas-mcarvalho/Music_Player/releases/latest)
+[![Baixar a última versão](https://img.shields.io/github/v/release/lucas-mcarvalho/Music_Player?label=Baixar&style=for-the-badge&color=1DB954)](https://github.com/lucas-mcarvalho/Music_Player/releases/latest)
 
 | Arquivo | Para quem |
 |---|---|
@@ -86,7 +86,7 @@ Todas as versões, com as notas de cada uma, ficam em **[Releases](https://githu
 
 **Aparência**
 - Tema **Claro**, **Escuro** ou **Padrão do sistema** (botão no canto superior direito). A escolha fica salva.
-- Cor de destaque laranja `#FF5A1F`.
+- Cor de destaque verde `#1DB954`.
 
 ---
 

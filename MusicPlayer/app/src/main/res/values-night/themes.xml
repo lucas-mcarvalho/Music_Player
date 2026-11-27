@@ -1,5 +1,5 @@
 <resources>
     <style name="Theme.Musica" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowBackground">#0E0E10</item>
+        <item name="android:windowBackground">#060C0A</item>
     </style>
 </resources>

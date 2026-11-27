@@ -5,6 +5,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
@@ -35,18 +36,19 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.BrightnessAuto
+import androidx.compose.material.icons.rounded.SettingsBrightness
 import androidx.compose.material.icons.rounded.Cancel
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.LightMode
+import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Shuffle
-import androidx.compose.material.icons.rounded.TravelExplore
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
@@ -67,6 +69,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.Role
@@ -154,9 +157,11 @@ private fun HomeHeader(vm: MusicViewModel) {
     ) {
         Column(Modifier.weight(1f)) {
             Text(
-                "Música",
-                style = MaterialTheme.typography.headlineLarge,
+                "Sua Biblioteca",
+                style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.ExtraBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             if (vm.loaded) {
                 Text(
@@ -176,33 +181,17 @@ private fun HomeHeader(vm: MusicViewModel) {
 
 @Composable
 private fun OnlineButton(onClick: () -> Unit) {
-    Row(
-        Modifier
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.primaryContainer)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    IconButton(
+        onClick = onClick,
+        colors = IconButtonDefaults.iconButtonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
     ) {
-        Icon(Icons.Rounded.TravelExplore, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-        Spacer(Modifier.width(6.dp))
-        Text(
-            "Online",
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onPrimaryContainer,
-        )
+        Icon(Icons.Rounded.Search, "Procurar online")
     }
 }
 
 @Composable
 private fun ThemeButton(vm: MusicViewModel) {
     var open by remember { mutableStateOf(false) }
-    val icon = when (vm.themeMode) {
-        ThemeMode.SYSTEM -> Icons.Rounded.BrightnessAuto
-        ThemeMode.LIGHT -> Icons.Rounded.LightMode
-        ThemeMode.DARK -> Icons.Rounded.DarkMode
-    }
     Box {
         IconButton(
             onClick = { open = true },
@@ -213,11 +202,17 @@ private fun ThemeButton(vm: MusicViewModel) {
                 ThemeMode.LIGHT -> "claro"
                 ThemeMode.DARK -> "escuro"
             }
-            Icon(icon, "Tema: $current. Toque para mudar")
+            Icon(Icons.Rounded.Palette, "Tema: $current, cor ${vm.accentColor.label}. Toque para mudar")
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            Text(
+                "Modo",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            )
             listOf(
-                Triple(ThemeMode.SYSTEM, "Padrão do sistema", Icons.Rounded.BrightnessAuto),
+                Triple(ThemeMode.SYSTEM, "Padrão do sistema", Icons.Rounded.SettingsBrightness),
                 Triple(ThemeMode.LIGHT, "Claro", Icons.Rounded.LightMode),
                 Triple(ThemeMode.DARK, "Escuro", Icons.Rounded.DarkMode),
             ).forEach { (mode, label, modeIcon) ->
@@ -230,8 +225,62 @@ private fun ThemeButton(vm: MusicViewModel) {
                     onClick = { vm.updateThemeMode(mode); open = false },
                 )
             }
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            Text(
+                "Cor do tema",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            )
+            AccentColorPicker(selected = vm.accentColor, onSelect = vm::updateAccentColor)
         }
     }
+}
+
+/** Grade de bolinhas coloridas para escolher a cor de destaque do app. */
+@Composable
+private fun AccentColorPicker(selected: AccentColor, onSelect: (AccentColor) -> Unit) {
+    val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    AccentColor.entries.chunked(4).forEach { row ->
+        Row(
+            Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            row.forEach { color ->
+                val swatch = if (dark) color.bright else color.onLight
+                val isSelected = color == selected
+                Box(
+                    Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .selectable(selected = isSelected, role = Role.RadioButton, onClick = { onSelect(color) })
+                        .semantics { contentDescription = "Cor ${color.label}" },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(swatch)
+                            .then(
+                                if (isSelected) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
+                                else Modifier
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (isSelected) {
+                            Icon(
+                                Icons.Rounded.Check, null,
+                                tint = if (dark) Color.Black else Color.White,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Spacer(Modifier.height(4.dp))
 }
 
 /** Barra de pesquisa em pílula. Com [onSearch], a busca só roda ao tocar em "pesquisar" no teclado. */
@@ -345,6 +394,21 @@ private fun SongsTab(vm: MusicViewModel) {
         return
     }
     SongList(vm, vm.songs, header = {
+        Text("Minhas playlists", Modifier.padding(start = 20.dp, top = 8.dp, bottom = 10.dp), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            item {
+                LibraryCard("Favoritas", "${vm.favorites.size} músicas", vm.songs.firstOrNull { it.id in vm.favorites }?.albumId) {
+                    vm.open(Detail(DetailKind.FAVORITES, "fav", "Favoritas"))
+                }
+            }
+            items(vm.playlists.size) { index ->
+                val playlist = vm.playlists[index]
+                LibraryCard(playlist.name, "${playlist.songIds.size} músicas", vm.songs.firstOrNull { it.id in playlist.songIds }?.albumId) {
+                    vm.open(Detail(DetailKind.PLAYLIST, playlist.id, playlist.name))
+                }
+            }
+        }
+        Text("Suas músicas", Modifier.padding(start = 20.dp, top = 20.dp), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             FilledTonalButton(onClick = { vm.play(vm.songs, shuffle = true) }) {
                 Icon(Icons.Rounded.Shuffle, null, Modifier.size(18.dp))

@@ -9,6 +9,8 @@ import com.yausername.youtubedl_android.YoutubeDLRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -225,6 +227,24 @@ object YtDlp {
 
             dir.listFiles()?.firstOrNull { it.name.startsWith("audio.") && it.extension in AUDIO_EXTENSIONS }
                 ?: throw IOException("O yt-dlp terminou, mas o arquivo de áudio não foi gerado")
+        }
+    }
+
+    /** Resolve o endereço do áudio para tocar direto da internet, sem baixar. */
+    suspend fun streamUrl(context: Context, item: OnlineResult, processId: String): String {
+        ensureReady(context)
+        return withContext(Dispatchers.IO) {
+            fun resolve(fast: Boolean): String {
+                val request = YoutubeDLRequest(item.url)
+                    .addOption("--no-playlist").addOption("-f", AUDIO_FORMAT)
+                    .addOption("--get-url").addOption("--no-warnings").withCache(context)
+                if (fast) request.addOption("--extractor-args", FAST_EXTRACTOR_ARGS)
+                return YoutubeDL.getInstance().execute(request, processId).out.lineSequence()
+                    .map { it.trim() }.first { it.startsWith("https://") || it.startsWith("http://") }
+            }
+            // Tenta primeiro o modo rápido; se falhar, o modo completo (mais lento, porém mais confiável)
+            try { resolve(true) } catch (e: YoutubeDL.CanceledException) { throw e }
+            catch (e: Exception) { currentCoroutineContext().ensureActive(); resolve(false) }
         }
     }
 

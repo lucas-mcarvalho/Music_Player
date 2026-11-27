@@ -1,5 +1,5 @@
 <resources>
-    <color name="ic_bg">#FF5A1F</color>
+    <color name="ic_bg">#1DB954</color>
     <style name="Theme.Musica" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@android:color/white</item>
     </style>

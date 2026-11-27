@@ -14,7 +14,16 @@ data class Song(
     val duration: Long,
     val uri: Uri,
     val folder: String,
-)
+    /** ID do vídeo, quando a música está tocando direto da internet (não está na biblioteca). */
+    val onlineId: String? = null,
+    /** Capa vinda da internet (miniatura do vídeo), usada no lugar da capa do álbum. */
+    val artUrl: String? = null,
+) {
+    val isOnline get() = onlineId != null
+}
+
+/** Prefixo do mediaId das músicas tocadas direto da internet. */
+const val ONLINE_MEDIA_PREFIX = "online:"
 
 data class Playlist(
     val id: String,
